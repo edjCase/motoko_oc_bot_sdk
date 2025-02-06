@@ -1,13 +1,18 @@
 [dependencies]
-base = "0.11.3"
+base = "0.14.0"
+http-types = "1.0.1"
+json = "https://github.com/Demali-876/json#8b83a21aea5eb2c5b559f2528d31dfb8c6d8e793"
+base64 = "1.0.0"
+xtended-numbers = "0.3.1"
+itertools = "0.2.2"
 
 [package]
-name = "dao-proposal-engine"
-version = "0.1.0"
+name = "openchat-bot-sdk"
+version = "0.0.1"
 description = "A library for creating, voting on and executing proposals"
-repository = "https://github.com/edjcase/motoko_proposal_engine"
-keywords = [ "dao", "proposal", "proposals", "vote", "voting" ]
+repository = "https://github.com/edjcase/motoko_oc_bot_sdk"
+keywords = ["OpenChat", "SDK", "bot"]
 license = "MIT"
 
 [dev-dependencies]
-test = "1.0.1"
+test = "2.0.0"
