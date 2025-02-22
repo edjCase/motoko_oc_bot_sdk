@@ -1,10 +1,11 @@
 [dependencies]
-base = "0.14.0"
+base = "0.14.1"
 http-types = "1.0.1"
-json = "https://github.com/Demali-876/json#8b83a21aea5eb2c5b559f2528d31dfb8c6d8e793@8b83a21aea5eb2c5b559f2528d31dfb8c6d8e793"
 base64 = "1.0.0"
 xtended-numbers = "0.3.1"
 itertools = "0.2.2"
+ecdsa = "0.0.2"
+json = "1.0.1"
 
 [package]
 name = "openchat-bot-sdk"
@@ -15,4 +16,4 @@ keywords = ["openchat", "sdk", "bot"]
 license = "MIT"
 
 [dev-dependencies]
-test = "2.0.0"
+test = "2.1.0"

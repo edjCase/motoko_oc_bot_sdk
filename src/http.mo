@@ -9,12 +9,14 @@ import Json "mo:json";
 import Base64 "mo:base64";
 import SdkTypes "./types";
 import SdkSerializer "./serializer";
+import ECDSA "mo:ecdsa";
 
 module {
 
     public class HttpHandler(
         botSchema : SdkTypes.BotSchema,
         execute : SdkTypes.BotAction -> async* SdkTypes.CommandResponse,
+        openChatPublicKey : Blob,
     ) {
 
         public func http_request(request : HttpTypes.Request) : HttpTypes.Response {
@@ -73,7 +75,7 @@ module {
         };
 
         private func parseAndExecuteAction(body : Blob) : async* SdkTypes.CommandResponse {
-            let jwtData : JwtData = switch (verifyJwt(body)) {
+            let jwtData : JwtData = switch (verifyJwt(body, openChatPublicKey)) {
                 case (#ok(result)) result;
                 case (#err(#expired(_))) return #badRequest(#accessTokenExpired);
                 case (#err(#invalidSignature)) return #badRequest(#accessTokenInvalid);
@@ -111,7 +113,7 @@ module {
             #jwtNotFound;
         };
 
-        private func verifyJwt(body : Blob) : Result.Result<JwtData, VerifyJwtError> {
+        private func verifyJwt(body : Blob, publicKeyBytes : Blob) : Result.Result<JwtData, VerifyJwtError> {
 
             let ?jwt = Text.decodeUtf8(body) else return #err(#parseError("Unable to decode body as UTF-8"));
 
@@ -122,26 +124,22 @@ module {
                 return #err(#jwtNotFound);
             };
 
-            // TODO
-            // let headerJson = parts[0];
+            let headerJson = parts[0];
             let claimsJson = parts[1];
-            // let signatureStr = parts[2];
+            let signatureStr = parts[2];
 
-            // // Decode base64url signature to bytes
+            // Decode base64url signature to bytes
             let base64UrlEngine = Base64.Base64(#v(Base64.V2), ?true);
-            // let signatureBytes = base64UrlEngine.decode(signatureStr); // TODO handle error
+            let signatureBytes = Blob.fromArray(base64UrlEngine.decode(signatureStr)); // TODO handle error
 
-            // // Create message to verify (header + "." + claims)
-            // let message = Text.concat(headerJson, Text.concat(".", claimsJson));
-            // let messageBytes = Blob.toArray(Text.encodeUtf8(message));
+            // Create message to verify (header + "." + claims)
+            let message = Text.concat(headerJson, Text.concat(".", claimsJson));
+            let messageBytes = Blob.toArray(Text.encodeUtf8(message));
 
-            // // Parse PEM public key and verify signature
-            // let #ok = await* ECDSA.verify({
-            //     publicKey = publicKeyPem;
-            //     message = messageBytes;
-            //     signature = signatureBytes;
-            //     algorithm = #P256;
-            // }) else return return #err("Signature verification failed");
+            let ?publicKey = ECDSA.deserializePublicKeyUncompressed(publicKeyBytes) else Debug.trap("Failed to deserialize public key");
+            let ?signature = ECDSA.deserializeSignatureDer(signatureBytes) else return #err(#invalidSignature);
+            // Parse PEM public key and verify signature
+            let true = ECDSA.verify(publicKey, messageBytes.vals(), signature) else return #err(#invalidSignature);
 
             // Decode and parse claims
             let claimsBytes = base64UrlEngine.decode(claimsJson); // TODO handle error
