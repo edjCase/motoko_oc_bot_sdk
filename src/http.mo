@@ -142,7 +142,7 @@ module {
             let messageBytes = Blob.toArray(Text.encodeUtf8(message));
 
             Debug.print("Processing keys");
-            let ?publicKey = ECDSA.deserializePublicKeyUncompressed(publicKeyBytes) else Debug.trap("Failed to deserialize public key");
+            let ?publicKey = ECDSA.deserializePublicKeyCompressed(publicKeyBytes) else Debug.trap("Failed to deserialize public key");
             Debug.print("Processing signature");
             let ?signature = ECDSA.deserializeSignatureDer(signatureBytes) else return #err(#invalidSignature);
             Debug.print("Verifying signature");
