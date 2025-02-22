@@ -79,6 +79,7 @@ module {
         };
 
         private func parseAndExecuteAction(body : Blob) : async* SdkTypes.CommandResponse {
+            Debug.print("Received body");
             let jwtData : JwtData = switch (verifyJwt(body, openChatPublicKey)) {
                 case (#ok(result)) result;
                 case (#err(#expired(_))) return #badRequest(#accessTokenExpired);
@@ -89,7 +90,7 @@ module {
                     return #badRequest(#accessTokenInvalid);
                 };
             };
-
+            Debug.print("JWT verified");
             let action : SdkTypes.BotAction = switch (jwtData.claimType) {
                 case ("BotActionByCommand") switch (SdkSerializer.deserializeBotActionByCommand(jwtData.data)) {
                     case (#ok(action)) #command(action);
@@ -140,10 +141,14 @@ module {
             let message = Text.concat(headerJson, Text.concat(".", claimsJson));
             let messageBytes = Blob.toArray(Text.encodeUtf8(message));
 
+            Debug.print("Processing keys");
             let ?publicKey = ECDSA.deserializePublicKeyUncompressed(publicKeyBytes) else Debug.trap("Failed to deserialize public key");
+            Debug.print("Processing signature");
             let ?signature = ECDSA.deserializeSignatureDer(signatureBytes) else return #err(#invalidSignature);
+            Debug.print("Verifying signature");
             // Parse PEM public key and verify signature
             let true = ECDSA.verify(publicKey, messageBytes.vals(), signature) else return #err(#invalidSignature);
+            Debug.print("Signature verified");
 
             // Decode and parse claims
             let claimsBytes = base64UrlEngine.decode(claimsJson); // TODO handle error
