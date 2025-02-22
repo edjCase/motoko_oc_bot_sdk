@@ -5,6 +5,7 @@ import Result "mo:base/Result";
 import Iter "mo:base/Iter";
 import Time "mo:base/Time";
 import Debug "mo:base/Debug";
+import Error "mo:base/Error";
 import Json "mo:json";
 import Base64 "mo:base64";
 import SdkTypes "./types";
@@ -50,14 +51,17 @@ module {
             if (request.method == "POST") {
                 // TODO query string (use path not url)
                 if (request.url == "/execute_command") {
-
-                    let commandResponse = await* parseAndExecuteAction(request.body);
-
-                    let (statusCode, response) : (Nat16, Json.Json) = switch (commandResponse) {
-                        case (#success(success)) (200, SdkSerializer.serializeSuccess(success));
-                        case (#badRequest(badRequest)) (400, SdkSerializer.serializeBadRequest(badRequest));
-                        case (#internalError(error)) (500, SdkSerializer.serializeInternalError(error));
+                    let (statusCode, response) : (Nat16, Json.Json) = try {
+                        let commandResponse = await* parseAndExecuteAction(request.body);
+                        switch (commandResponse) {
+                            case (#success(success)) (200, SdkSerializer.serializeSuccess(success));
+                            case (#badRequest(badRequest)) (400, SdkSerializer.serializeBadRequest(badRequest));
+                            case (#internalError(error)) (500, SdkSerializer.serializeInternalError(error));
+                        };
+                    } catch (e) {
+                        (500, SdkSerializer.serializeInternalError(#invalid("Internal error: " # Error.message(e))));
                     };
+
                     Debug.print("Response: " # debug_show (response));
                     let jsonBytes = Text.encodeUtf8(Json.stringify(response, null));
                     return {
