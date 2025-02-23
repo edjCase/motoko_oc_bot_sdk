@@ -7,7 +7,7 @@ import Principal "mo:base/Principal";
 import Buffer "mo:base/Buffer";
 import Nat "mo:base/Nat";
 import Array "mo:base/Array";
-import SdkTypes "./types";
+import SdkTypes "./Types";
 import IterTools "mo:itertools/Iter";
 
 module {

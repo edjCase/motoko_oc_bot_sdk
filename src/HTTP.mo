@@ -6,10 +6,12 @@ import Iter "mo:base/Iter";
 import Time "mo:base/Time";
 import Debug "mo:base/Debug";
 import Error "mo:base/Error";
+import Option "mo:base/Option";
 import Json "mo:json";
 import Base64 "mo:base64";
-import SdkTypes "./types";
-import SdkSerializer "./serializer";
+import SdkTypes "./Types";
+import SdkSerializer "./Serializer";
+import SdkDER "./DER";
 import ECDSA "mo:ecdsa";
 
 module {
@@ -141,8 +143,17 @@ module {
             let message = Text.concat(headerJson, Text.concat(".", claimsJson));
             let messageBytes = Blob.toArray(Text.encodeUtf8(message));
 
+            let ?publicKeyText = Text.decodeUtf8(publicKeyBytes) else return #err(#parseError("Unable to decode public key as UTF-8"));
+            let ?derPublicKey = SdkDER.parsePublicKey(publicKeyText) else return #err(#parseError("Failed to parse public key"));
+            if (derPublicKey.algorithm.oid != "1.2.840.10045.2.1") {
+                return #err(#parseError("Invalid public key algorithm OID: " # derPublicKey.algorithm.oid));
+            };
+            if (derPublicKey.algorithm.parameters != ?"1.2.840.10045.3.1.7") {
+                return #err(#parseError("Invalid public key algorithm parameters OID: " # Option.get(derPublicKey.algorithm.parameters, "")));
+            };
+
             Debug.print("Processing keys");
-            let ?publicKey = ECDSA.deserializePublicKeyCompressed(publicKeyBytes) else Debug.trap("Failed to deserialize public key");
+            let ?publicKey = ECDSA.deserializePublicKeyCompressed(Blob.fromArray(derPublicKey.key)) else Debug.trap("Failed to deserialize public key");
             Debug.print("Processing signature");
             let ?signature = ECDSA.deserializeSignatureDer(signatureBytes) else return #err(#invalidSignature);
             Debug.print("Verifying signature");
