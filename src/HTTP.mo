@@ -153,7 +153,10 @@ module {
             };
 
             Debug.print("Processing keys");
-            let ?publicKey = ECDSA.deserializePublicKeyUncompressed(Blob.fromArray(derPublicKey.key)) else Debug.trap("Failed to deserialize public key");
+            let ?publicKey = ECDSA.deserializePublicKeyUncompressed(Blob.fromArray(derPublicKey.key)) else {
+                Debug.print("Failed to deserialize public key");
+                Debug.trap("Failed to deserialize public key");
+            };
             Debug.print("Processing signature");
             let ?signature = ECDSA.deserializeSignatureDer(signatureBytes) else return #err(#invalidSignature);
             Debug.print("Verifying signature");
