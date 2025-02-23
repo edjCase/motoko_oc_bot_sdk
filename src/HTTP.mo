@@ -153,7 +153,7 @@ module {
             };
 
             Debug.print("Processing keys");
-            let ?publicKey = ECDSA.deserializePublicKeyUncompressed(Blob.fromArray(derPublicKey.key)) else {
+            let ?publicKey = ECDSA.deserializePublicKeyCompressed(Blob.fromArray(derPublicKey.key)) else {
                 Debug.print("Failed to deserialize public key: " # debug_show (derPublicKey.key));
                 Debug.trap("Failed to deserialize public key");
             };
