@@ -152,8 +152,8 @@ module {
                 return #err(#parseError("Invalid public key algorithm parameters OID: " # Option.get(derPublicKey.algorithm.parameters, "")));
             };
 
-            Debug.print("Processing keys");
-            let ?publicKey = ECDSA.deserializePublicKeyCompressed(Blob.fromArray(derPublicKey.key)) else {
+            Debug.print("Processing keyz");
+            let ?publicKey = ECDSA.deserializePublicKeyUncompressed(Blob.fromArray(derPublicKey.key)) else {
                 Debug.print("Failed to deserialize public key: " # debug_show (derPublicKey.key));
                 Debug.trap("Failed to deserialize public key");
             };
