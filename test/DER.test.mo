@@ -84,15 +84,82 @@ SW37uqX8DP2bzeJ5vyiwiWtbpcFoPemColnzogXkZLDE40wC1SCtAScCsA==
                         oid = "1.2.840.10045.2.1";
                         parameters = ?"1.2.840.10045.3.1.7";
                     };
-                    bitString = {
-                        tag = 0x03;
-                        length = 66;
-                        totalBytes = 68;
-                    };
-                    sequence = {
-                        tag = 0x30;
-                        length = 89;
-                        totalBytes = 91;
+                },
+            ),
+            (
+                "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5GaOVUjuWn59a8Bp79694D5KClL77iirARZNAzxLY2U4HYcEbU+PtOfM8/00Ovo+2uSbFhsCQPw+ijM3pf6OOQ==",
+                ?{
+                    key = [
+                        0x00,
+                        0x04,
+                        0xE4,
+                        0x66,
+                        0x8E,
+                        0x55,
+                        0x48,
+                        0xEE,
+                        0x5A,
+                        0x7E,
+                        0x7D,
+                        0x6B,
+                        0xC0,
+                        0x69,
+                        0xEF,
+                        0xDE,
+                        0xBD,
+                        0xE0,
+                        0x3E,
+                        0x4A,
+                        0x0A,
+                        0x52,
+                        0xFB,
+                        0xEE,
+                        0x28,
+                        0xAB,
+                        0x01,
+                        0x16,
+                        0x4D,
+                        0x03,
+                        0x3C,
+                        0x4B,
+                        0x63,
+                        0x65,
+                        0x38,
+                        0x1D,
+                        0x87,
+                        0x04,
+                        0x6D,
+                        0x4F,
+                        0x8F,
+                        0xB4,
+                        0xE7,
+                        0xCC,
+                        0xF3,
+                        0xFD,
+                        0x34,
+                        0x3A,
+                        0xFA,
+                        0x3E,
+                        0xDA,
+                        0xE4,
+                        0x9B,
+                        0x16,
+                        0x1B,
+                        0x02,
+                        0x40,
+                        0xFC,
+                        0x3E,
+                        0x8A,
+                        0x33,
+                        0x37,
+                        0xA5,
+                        0xFE,
+                        0x8E,
+                        0x39,
+                    ];
+                    algorithm = {
+                        oid = "1.2.840.10045.2.1";
+                        parameters = ?"1.2.840.10045.3.1.7";
                     };
                 },
             ),
