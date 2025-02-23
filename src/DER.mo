@@ -4,7 +4,7 @@ import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
 import Base64 "mo:base64";
 import Buffer "mo:base/Buffer";
-import Option "mo:base/Option";
+import IterTools "mo:itertools/Iter";
 
 module {
 
@@ -134,7 +134,7 @@ module {
         if (pkTag != 0x03) return null;
         let ?_pkLength = parseDerLength(bytes) else return null;
 
-        let keyBytes = bytes |> Iter.toArray(_); // Get rest of the bytes
+        let keyBytes = bytes |> IterTools.skipWhile(_, func(byte : Nat8) : Bool = byte == 0) |> Iter.toArray(_); // Get rest of the bytes
 
         ?{
             key = keyBytes;

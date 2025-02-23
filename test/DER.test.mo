@@ -13,7 +13,6 @@ SW37uqX8DP2bzeJ5vyiwiWtbpcFoPemColnzogXkZLDE40wC1SCtAScCsA==
 -----END PUBLIC KEY-----",
                 ?{
                     key = [
-                        0x00,
                         0x04,
                         0x1d,
                         0x20,
@@ -90,7 +89,6 @@ SW37uqX8DP2bzeJ5vyiwiWtbpcFoPemColnzogXkZLDE40wC1SCtAScCsA==
                 "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5GaOVUjuWn59a8Bp79694D5KClL77iirARZNAzxLY2U4HYcEbU+PtOfM8/00Ovo+2uSbFhsCQPw+ijM3pf6OOQ==",
                 ?{
                     key = [
-                        0x00,
                         0x04,
                         0xE4,
                         0x66,
