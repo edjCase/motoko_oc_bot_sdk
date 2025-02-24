@@ -24,7 +24,7 @@ module {
         // getBlobData : Text -> ?BlobData.BlobData,
         openChatPublicKey : Blob,
     ) {
-        let base64Engine = Base64.Base64(#v(Base64.V2), ?false);
+        let base64Engine = Base64.Base64(#v(Base64.V2), ?true);
 
         public func http_request(request : HttpTypes.Request) : HttpTypes.Response {
 
@@ -86,7 +86,6 @@ module {
                 (500, SdkSerializer.serializeInternalError(#invalid("Internal error: " # Error.message(e))));
             };
 
-            Debug.print("Response: " # debug_show (response));
             let jsonBytes = Text.encodeUtf8(Json.stringify(response, null));
             return {
                 status_code = statusCode;
@@ -136,7 +135,6 @@ module {
         };
 
         private func parseAndExecuteAction(body : Blob) : async* SdkTypes.CommandResponse {
-            Debug.print("Received body");
             let jwtData : JwtData = switch (verifyJwt(body, openChatPublicKey)) {
                 case (#ok(result)) result;
                 case (#err(#expired(_))) return #badRequest(#accessTokenExpired);
@@ -147,7 +145,6 @@ module {
                     return #badRequest(#accessTokenInvalid);
                 };
             };
-            Debug.print("JWT verified");
             let action : SdkTypes.BotAction = switch (jwtData.claimType) {
                 case ("BotActionByCommand") switch (SdkSerializer.deserializeBotActionByCommand(jwtData.data)) {
                     case (#ok(action)) #command(action);
@@ -206,15 +203,12 @@ module {
                 return #err(#parseError("Invalid public key algorithm parameters OID: " # Option.get(derPublicKey.algorithm.parameters, "")));
             };
 
-            Debug.print("Processing keyz");
             let curve = Curve.Curve(#prime256v1);
             let ?publicKey = ECDSA.deserializePublicKeyUncompressed(curve, Blob.fromArray(derPublicKey.key)) else {
                 Debug.print("Failed to deserialize public key: " # debug_show (derPublicKey.key));
                 Debug.trap("Failed to deserialize public key");
             };
-            Debug.print("Public key deserialized: " # debug_show (publicKey) # " from " # debug_show (derPublicKey.key));
             let ?signature = ECDSA.deserializeSignatureRaw(signatureBytes) else return #err(#invalidSignature);
-            Debug.print("Verifying signature : " # debug_show (signature) # " from " # debug_show (signatureBytes));
             let normalizedSig = ECDSA.normalizeSignature(curve, signature);
             Debug.print("Normalized signature: " # debug_show (normalizedSig));
             let true = ECDSA.verify(curve, publicKey, messageBytes.vals(), normalizedSig) else return #err(#invalidSignature);
