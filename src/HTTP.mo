@@ -13,6 +13,7 @@ import SdkTypes "./Types";
 import SdkSerializer "./Serializer";
 import SdkDER "./DER";
 import ECDSA "mo:ecdsa";
+import Curve "mo:ecdsa/curve";
 
 module {
 
@@ -153,15 +154,16 @@ module {
             };
 
             Debug.print("Processing keyz");
-            let ?publicKey = ECDSA.deserializePublicKeyUncompressed(Blob.fromArray(derPublicKey.key)) else {
+            let curve = Curve.Curve(#prime256v1);
+            let ?publicKey = ECDSA.deserializePublicKeyUncompressed(curve, Blob.fromArray(derPublicKey.key)) else {
                 Debug.print("Failed to deserialize public key: " # debug_show (derPublicKey.key));
                 Debug.trap("Failed to deserialize public key");
             };
             Debug.print("Processing signature");
-            let ?signature = ECDSA.deserializeSignatureDer(signatureBytes) else return #err(#invalidSignature);
+            let ?signature = ECDSA.deserializeSignatureDer(curve, signatureBytes) else return #err(#invalidSignature);
             Debug.print("Verifying signature");
             // Parse PEM public key and verify signature
-            let true = ECDSA.verify(publicKey, messageBytes.vals(), signature) else return #err(#invalidSignature);
+            let true = ECDSA.verify(curve, publicKey, messageBytes.vals(), signature) else return #err(#invalidSignature);
             Debug.print("Signature verified");
 
             // Decode and parse claims
