@@ -50,5 +50,4 @@ actor {
     public func http_request_update(request : Sdk.UpdateHttpRequest) : async Sdk.UpdateHttpResponse {
         await* handler.http_request_update(request);
     };
-
 };
