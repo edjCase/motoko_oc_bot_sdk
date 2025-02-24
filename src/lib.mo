@@ -1,7 +1,11 @@
 import HTTP "./HTTP";
 import Types "./Types";
-
+import HttpTypes "mo:http-types";
 module {
+    public type HttpRequest = HttpTypes.Request;
+    public type HttpResponse = HttpTypes.Response;
+    public type UpdateHttpRequest = HttpTypes.UpdateRequest;
+    public type UpdateHttpResponse = HttpTypes.UpdateResponse;
     public type BotSchema = Types.BotSchema;
     public type BotAction = Types.BotAction;
     public type BotActionByCommand = Types.BotActionByCommand;

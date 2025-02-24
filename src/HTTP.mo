@@ -20,21 +20,14 @@ module {
     public class HttpHandler(
         botSchema : SdkTypes.BotSchema,
         execute : SdkTypes.BotAction -> async* SdkTypes.CommandResponse,
+        // getBotMetrics : () -> [(Text, Json.Json)],
+        // getBlobData : Text -> ?BlobData.BlobData,
         openChatPublicKey : Blob,
     ) {
+        let base64Engine = Base64.Base64(#v(Base64.V2), ?false);
 
         public func http_request(request : HttpTypes.Request) : HttpTypes.Response {
-            if (request.method == "GET") {
-                let jsonObj = SdkSerializer.serializeBotSchema(botSchema);
-                let jsonBytes = Text.encodeUtf8(Json.stringify(jsonObj, null));
-                return {
-                    status_code = 200;
-                    headers = [("Content-Type", "application/json")];
-                    body = jsonBytes;
-                    streaming_strategy = null;
-                    upgrade = null;
-                };
-            };
+
             if (request.method == "POST") {
                 // Upgrade request on POST
                 return {
@@ -45,6 +38,21 @@ module {
                     upgrade = ?true;
                 };
             };
+
+            if (request.method == "GET") {
+                if (request.url == "/metrics") return getMetrics();
+                let blobIdOrNull = Text.stripStart(request.url, #text("/blobs/"));
+                switch (blobIdOrNull) {
+                    case (?blobId) return getBlob(blobId);
+                    case (_) ();
+                };
+                let webhookIdOrNull = Text.stripStart(request.url, #text("/webhook/"));
+                switch (webhookIdOrNull) {
+                    case (?webhookId) return executeWebhook(webhookId);
+                    case (_) ();
+                };
+                return getDescription();
+            };
             // Not found catch all
             getNotFoundResponse();
         };
@@ -54,31 +62,77 @@ module {
             if (request.method == "POST") {
                 // TODO query string (use path not url)
                 if (request.url == "/execute_command") {
-                    let (statusCode, response) : (Nat16, Json.Json) = try {
-                        let commandResponse = await* parseAndExecuteAction(request.body);
-                        switch (commandResponse) {
-                            case (#success(success)) (200, SdkSerializer.serializeSuccess(success));
-                            case (#badRequest(badRequest)) (400, SdkSerializer.serializeBadRequest(badRequest));
-                            case (#internalError(error)) (500, SdkSerializer.serializeInternalError(error));
-                        };
-                    } catch (e) {
-                        (500, SdkSerializer.serializeInternalError(#invalid("Internal error: " # Error.message(e))));
-                    };
-
-                    Debug.print("Response: " # debug_show (response));
-                    let jsonBytes = Text.encodeUtf8(Json.stringify(response, null));
-                    return {
-                        status_code = statusCode;
-                        headers = [("Content-Type", "application/json")];
-                        body = jsonBytes;
-                        streaming_strategy = null;
-                        upgrade = null;
-                    };
+                    return await* executeCommand(request);
                 };
             };
 
             // Not found catch all
             getNotFoundResponse();
+        };
+
+        private func executeWebhook(_webhookId : Text) : HttpTypes.Response {
+            Debug.trap("Webhooks are not implemented yet");
+        };
+
+        private func executeCommand(request : HttpTypes.UpdateRequest) : async* HttpTypes.UpdateResponse {
+            let (statusCode, response) : (Nat16, Json.Json) = try {
+                let commandResponse = await* parseAndExecuteAction(request.body);
+                switch (commandResponse) {
+                    case (#success(success)) (200, SdkSerializer.serializeSuccess(success));
+                    case (#badRequest(badRequest)) (400, SdkSerializer.serializeBadRequest(badRequest));
+                    case (#internalError(error)) (500, SdkSerializer.serializeInternalError(error));
+                };
+            } catch (e) {
+                (500, SdkSerializer.serializeInternalError(#invalid("Internal error: " # Error.message(e))));
+            };
+
+            Debug.print("Response: " # debug_show (response));
+            let jsonBytes = Text.encodeUtf8(Json.stringify(response, null));
+            return {
+                status_code = statusCode;
+                headers = [("Content-Type", "application/json")];
+                body = jsonBytes;
+                streaming_strategy = null;
+                upgrade = null;
+            };
+        };
+
+        private func getMetrics() : HttpTypes.Response {
+            Debug.trap("Get metrics is not implemented yet");
+            // let metrics = getBotMetrics();
+            // let jsonBytes = Text.encodeUtf8(Json.stringify(#object_(metrics), null));
+            // return {
+            //     status_code = 200;
+            //     headers = [("Content-Type", "application/json")];
+            //     body = jsonBytes;
+            //     streaming_strategy = null;
+            //     upgrade = null;
+            // };
+
+        };
+
+        private func getBlob(_blobId : Text) : HttpTypes.Response {
+            Debug.trap("Get blob is not implemented yet");
+            // let ?blob = getBlobData(blobId) else return getNotFoundResponse();
+            // return {
+            //     status_code = 200;
+            //     headers = [("Content-Type", blob.mimeType)];
+            //     body = blob.data;
+            //     streaming_strategy = null;
+            //     upgrade = null;
+            // };
+        };
+
+        private func getDescription() : HttpTypes.Response {
+            let jsonObj = SdkSerializer.serializeBotSchema(botSchema);
+            let jsonBytes = Text.encodeUtf8(Json.stringify(jsonObj, null));
+            return {
+                status_code = 200;
+                headers = [("Content-Type", "application/json")];
+                body = jsonBytes;
+                streaming_strategy = null;
+                upgrade = null;
+            };
         };
 
         private func parseAndExecuteAction(body : Blob) : async* SdkTypes.CommandResponse {
@@ -137,8 +191,7 @@ module {
             let signatureStr = parts[2];
 
             // Decode base64url signature to bytes
-            let base64UrlEngine = Base64.Base64(#v(Base64.V2), ?true);
-            let signatureBytes = Blob.fromArray(base64UrlEngine.decode(signatureStr)); // TODO handle error
+            let signatureBytes = Blob.fromArray(base64Engine.decode(signatureStr)); // TODO handle error
 
             // Create message to verify (header + "." + claims)
             let message = Text.concat(headerJson, Text.concat(".", claimsJson));
@@ -168,7 +221,7 @@ module {
             Debug.print("Signature verified");
 
             // Decode and parse claims
-            let claimsBytes = base64UrlEngine.decode(claimsJson); // TODO handle error
+            let claimsBytes = base64Engine.decode(claimsJson); // TODO handle error
             let ?claimsText = Text.decodeUtf8(Blob.fromArray(claimsBytes)) else return #err(#parseError("Unable to parse claims"));
             switch (Json.parse(claimsText)) {
                 case (#err(e)) return #err(#parseError("Invalid claims JSON: " # debug_show (e)));
