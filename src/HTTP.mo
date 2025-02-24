@@ -160,7 +160,7 @@ module {
                 Debug.trap("Failed to deserialize public key");
             };
             Debug.print("Processing signature");
-            let ?signature = ECDSA.deserializeSignatureDer(curve, signatureBytes) else return #err(#invalidSignature);
+            let ?signature = ECDSA.deserializeSignatureRaw(signatureBytes) else return #err(#invalidSignature);
             Debug.print("Verifying signature");
             // Parse PEM public key and verify signature
             let true = ECDSA.verify(curve, publicKey, messageBytes.vals(), signature) else return #err(#invalidSignature);
