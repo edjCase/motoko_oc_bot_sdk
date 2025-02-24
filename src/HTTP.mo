@@ -162,7 +162,9 @@ module {
             Debug.print("Public key deserialized: " # debug_show (publicKey) # " from " # debug_show (derPublicKey.key));
             let ?signature = ECDSA.deserializeSignatureRaw(signatureBytes) else return #err(#invalidSignature);
             Debug.print("Verifying signature : " # debug_show (signature) # " from " # debug_show (signatureBytes));
-            let true = ECDSA.verify(curve, publicKey, messageBytes.vals(), signature) else return #err(#invalidSignature);
+            let normalizedSig = normalizeSignature(curve, sig);
+            Debug.print("Normalized signature: " # debug_show (normalizedSig));
+            let true = ECDSA.verify(curve, publicKey, messageBytes.vals(), normalizedSig) else return #err(#invalidSignature);
             Debug.print("Signature verified");
 
             // Decode and parse claims
