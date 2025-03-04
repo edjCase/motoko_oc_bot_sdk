@@ -3,7 +3,7 @@ import Sdk "../src";
 import Text "mo:base/Text";
 
 actor {
-    let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5GaOVUjuWn59a8Bp79694D5KClL77iirARZNAzxLY2U4HYcEbU+PtOfM8/00Ovo+2uSbFhsCQPw+ijM3pf6OOQ==");
+    let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEda9kd+GvW92seQZxd93XhxiRh5/kaBfoMLj92ycLFzaUkbe/RuhKmruuXZgy4GnWb5SACVYT8M4fNG2VMMrcXw==");
 
     let botSchema : Sdk.BotSchema = {
         description = "Echo Bot";
@@ -14,6 +14,7 @@ actor {
                 chat = [];
                 message = [#text];
             };
+            syncApiKey = false;
         };
     };
 

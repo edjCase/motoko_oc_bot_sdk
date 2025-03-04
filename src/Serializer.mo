@@ -7,6 +7,7 @@ import Principal "mo:base/Principal";
 import Buffer "mo:base/Buffer";
 import Nat "mo:base/Nat";
 import Array "mo:base/Array";
+import Nat32 "mo:base/Nat32";
 import SdkTypes "./Types";
 import IterTools "mo:itertools/Iter";
 
@@ -26,7 +27,9 @@ module {
     };
 
     private func serializeAutonomousConfig(config : SdkTypes.AutonomousConfig) : Json.Json {
-        var fields : [(Text, Json.Json)] = [];
+        var fields : [(Text, Json.Json)] = [
+            ("sync_api_key", #bool(config.syncApiKey)),
+        ];
         switch (config.permissions) {
             case (null) ();
             case (?permissions) fields := Array.append(fields, [("permissions", serializeBotPermissions(permissions))]);
@@ -103,7 +106,6 @@ module {
             ("value", #number(#int(choice.value))),
         ]);
     };
-
     private func serializeBotPermissions(permissions : SdkTypes.BotPermissions) : Json.Json {
         #object_([
             ("community", serializeArrayOfValues(permissions.community, serializeCommunityPermission)),
@@ -160,6 +162,88 @@ module {
             }
         );
     };
+
+    // TODO?
+
+    // private func serializeEncodedBotPermissions(permissions : SdkTypes.BotPermissions) : Json.Json {
+    //     let encodedCommunityPermissions = encodePermissions(
+    //         permissions.community,
+    //         encodeCommunityPermission,
+    //     );
+
+    //     let encodedChatPermissions = encodePermissions(
+    //         permissions.chat,
+    //         encodeGroupPermission,
+    //     );
+
+    //     let encodedMessagePermissions = encodePermissions(
+    //         permissions.message,
+    //         encodeMessagePermission,
+    //     );
+
+    //     #object_([
+    //         ("community", encodedCommunityPermissions),
+    //         ("chat", encodedChatPermissions),
+    //         ("message", encodedMessagePermissions),
+    //     ]);
+    // };
+
+    // private func encodePermissions<T>(permissions : [T], getEncodedValue : T -> Nat) : Json.Json {
+    //     var encoded : Nat32 = 0;
+
+    //     for (permission in permissions.vals()) {
+    //         let encodedValue = getEncodedValue(permission);
+    //         encoded := encoded | Nat32.pow(2, Nat32.fromNat(encodedValue));
+    //     };
+    //     if (encoded == 0) {
+    //         return #null_;
+    //     };
+
+    //     #number(#int(Int.abs(Nat32.toNat(encoded))));
+    // };
+
+    // private func encodeCommunityPermission(permission : SdkTypes.CommunityPermission) : Nat {
+    //     switch (permission) {
+    //         case (#changeRoles) 0;
+    //         case (#updateDetails) 1;
+    //         case (#inviteUsers) 2;
+    //         case (#removeMembers) 3;
+    //         case (#createPublicChannel) 4;
+    //         case (#createPrivateChannel) 5;
+    //         case (#manageUserGroups) 6;
+    //     };
+    // };
+
+    // private func encodeGroupPermission(permission : SdkTypes.GroupPermission) : Nat {
+    //     switch (permission) {
+    //         case (#changeRoles) 0;
+    //         case (#updateGroup) 1;
+    //         case (#addMembers) 2;
+    //         case (#inviteUsers) 3;
+    //         case (#removeMembers) 4;
+    //         case (#deleteMessages) 5;
+    //         case (#pinMessages) 6;
+    //         case (#reactToMessages) 7;
+    //         case (#mentionAllMembers) 8;
+    //         case (#startVideoCall) 9;
+    //     };
+    // };
+
+    // private func encodeMessagePermission(permission : SdkTypes.MessagePermission) : Nat {
+    //     switch (permission) {
+    //         case (#text) 0;
+    //         case (#image) 1;
+    //         case (#video) 2;
+    //         case (#audio) 3;
+    //         case (#file) 4;
+    //         case (#poll) 5;
+    //         case (#crypto) 6;
+    //         case (#giphy) 7;
+    //         case (#prize) 8;
+    //         case (#p2pSwap) 9;
+    //         case (#videoCall) 10;
+    //     };
+    // };
 
     public func serializeSuccess(success : SdkTypes.SuccessResult) : Json.Json {
         let fields : [(Text, Json.Json)] = switch (success.message) {
@@ -430,29 +514,52 @@ module {
     };
 
     private func deserializeBotPermissions(dataJson : Json.Json) : Result.Result<SdkTypes.BotPermissions, Text> {
-
-        let communityPermissions = switch (Json.getAsArray(dataJson, "community")) {
-            case (#ok(permssions)) switch (deserializeArrayOfValues(permssions, deserializeCommunityPermission)) {
-                case (#ok(v)) v;
-                case (#err(e)) return #err("Invalid 'community' field: " # e);
+        func getPermissions<T>(name : Text, getPermission : Nat -> ?T, deserializePermission : Json.Json -> Result.Result<T, Text>) : Result.Result<[T], Text> {
+            switch (Json.get(dataJson, name)) {
+                case (?#number(#int(encodedPermissions))) switch (decodePermissions<T>(encodedPermissions, getPermission)) {
+                    case (#ok(v)) #ok(v);
+                    case (#err(e)) #err("Invalid '" # name # "' BotPermission field: " # e);
+                };
+                case (?#array(permissions)) switch (deserializeArrayOfValues(permissions, deserializePermission)) {
+                    case (#ok(v)) #ok(v);
+                    case (#err(e)) #err("Invalid '" # name # "' field: " # e);
+                };
+                case (null) #ok([]); // No permissions
+                case (_) #err("'" # name # "' BotPermission field not found: ");
             };
-            case (#err(e)) return #err("Invalid 'community' field: " # debug_show (e));
         };
 
-        let chatPermissions = switch (Json.getAsArray(dataJson, "chat")) {
-            case (#ok(permssions)) switch (deserializeArrayOfValues(permssions, deserializeGroupPermission)) {
-                case (#ok(v)) v;
-                case (#err(e)) return #err("Invalid 'chat' field: " # e);
-            };
-            case (#err(e)) return #err("Invalid 'chat' field: " # debug_show (e));
+        let communityPermissions = switch (
+            getPermissions<SdkTypes.CommunityPermission>(
+                "community",
+                decodeCommunityPermission,
+                deserializeCommunityPermission,
+            )
+        ) {
+            case (#ok(permssions)) permssions;
+            case (#err(e)) return #err(e);
         };
 
-        let messagePermissions = switch (Json.getAsArray(dataJson, "message")) {
-            case (#ok(permissions)) switch (deserializeArrayOfValues(permissions, deserializeMessagePermission)) {
-                case (#ok(v)) v;
-                case (#err(e)) return #err("Invalid 'message' field: " # e);
-            };
-            case (#err(e)) return #err("Invalid 'message' field: " # debug_show (e));
+        let chatPermissions = switch (
+            getPermissions<SdkTypes.GroupPermission>(
+                "chat",
+                decodeGroupPermission,
+                deserializeGroupPermission,
+            )
+        ) {
+            case (#ok(permssions)) permssions;
+            case (#err(e)) return #err(e);
+        };
+
+        let messagePermissions = switch (
+            getPermissions<SdkTypes.MessagePermission>(
+                "message",
+                decodeMessagePermission,
+                deserializeMessagePermission,
+            )
+        ) {
+            case (#ok(permssions)) permssions;
+            case (#err(e)) return #err(e);
         };
 
         #ok({
@@ -460,6 +567,138 @@ module {
             chat = chatPermissions;
             message = messagePermissions;
         });
+    };
+
+    private func decodePermissions<T>(encodedPermissions : Int, getPermission : Nat -> ?T) : Result.Result<[T], Text> {
+        if (encodedPermissions < 0) {
+            return #err("Invalid encoded permissions value: " # Int.toText(encodedPermissions));
+        };
+        let encodedPermissionNat = Int.abs(encodedPermissions);
+        if (encodedPermissionNat > 4294967295) {
+            return #err("Invalid encoded permissions value: " # Nat.toText(encodedPermissionNat));
+        };
+        var encodedPermissionsNat32 = Nat32.fromNat(encodedPermissionNat);
+        let permissions = Buffer.Buffer<T>(0);
+        label f for (i in Iter.range(0, 32)) {
+            if (encodedPermissionsNat32 == 0) {
+                break f;
+            };
+            let flag = Nat32.pow(2, Nat32.fromNat(i));
+            if (encodedPermissionsNat32 & flag == 0) {
+                continue f; // Permission not set
+            };
+            encodedPermissionsNat32 := encodedPermissionsNat32 & ^flag;
+            switch (getPermission(i)) {
+                case (?permission) permissions.add(permission);
+                case (null) return #err("Invalid encoded permission value: " # Nat.toText(i));
+            };
+        };
+
+        #ok(Buffer.toArray(permissions));
+    };
+
+    private func decodeCommunityPermission(encodedPermission : Nat) : ?SdkTypes.CommunityPermission {
+        let permission = switch (encodedPermission) {
+            case (0) #changeRoles;
+            case (1) #updateDetails;
+            case (2) #inviteUsers;
+            case (3) #removeMembers;
+            case (4) #createPublicChannel;
+            case (5) #createPrivateChannel;
+            case (6) #manageUserGroups;
+            case (_) return null;
+        };
+        ?permission;
+    };
+
+    private func decodeGroupPermission(encodedPermission : Nat) : ?SdkTypes.GroupPermission {
+        let permission = switch (encodedPermission) {
+            case (0) #changeRoles;
+            case (1) #updateGroup;
+            case (2) #addMembers;
+            case (3) #inviteUsers;
+            case (4) #removeMembers;
+            case (5) #deleteMessages;
+            case (6) #pinMessages;
+            case (7) #reactToMessages;
+            case (8) #mentionAllMembers;
+            case (9) #startVideoCall;
+            case (_) return null;
+        };
+        ?permission;
+    };
+
+    private func decodeMessagePermission(encodedPermission : Nat) : ?SdkTypes.MessagePermission {
+        let permission = switch (encodedPermission) {
+            case (0) #text;
+            case (1) #image;
+            case (2) #video;
+            case (3) #audio;
+            case (4) #file;
+            case (5) #poll;
+            case (6) #crypto;
+            case (7) #giphy;
+            case (8) #prize;
+            case (9) #p2pSwap;
+            case (10) #videoCall;
+            case (_) return null;
+        };
+        ?permission;
+    };
+
+    private func deserializeMessagePermission(json : Json.Json) : Result.Result<SdkTypes.MessagePermission, Text> {
+        let #string(permissionString) = json else return #err("Invalid message permission, expected string value");
+
+        let permission : SdkTypes.MessagePermission = switch (permissionString) {
+            case ("Text") #text;
+            case ("Image") #image;
+            case ("Video") #video;
+            case ("Audio") #audio;
+            case ("File") #file;
+            case ("Poll") #poll;
+            case ("Crypto") #crypto;
+            case ("Giphy") #giphy;
+            case ("Prize") #prize;
+            case ("P2pSwap") #p2pSwap;
+            case ("VideoCall") #videoCall;
+            case (_) return #err("Invalid message permission: " # permissionString);
+        };
+        #ok(permission);
+    };
+
+    private func deserializeGroupPermission(json : Json.Json) : Result.Result<SdkTypes.GroupPermission, Text> {
+        let #string(permissionString) = json else return #err("Invalid group permission, expected string value");
+
+        let permission : SdkTypes.GroupPermission = switch (permissionString) {
+            case ("ChangeRoles") #changeRoles;
+            case ("UpdateGroup") #updateGroup;
+            case ("AddMembers") #addMembers;
+            case ("InviteUsers") #inviteUsers;
+            case ("RemoveMembers") #removeMembers;
+            case ("DeleteMessages") #deleteMessages;
+            case ("PinMessages") #pinMessages;
+            case ("ReactToMessages") #reactToMessages;
+            case ("MentionAllMembers") #mentionAllMembers;
+            case ("StartVideoCall") #startVideoCall;
+            case (_) return #err("Invalid group permission: " # permissionString);
+        };
+        #ok(permission);
+    };
+
+    private func deserializeCommunityPermission(json : Json.Json) : Result.Result<SdkTypes.CommunityPermission, Text> {
+        let #string(permissionString) = json else return #err("Invalid community permission, expected string value");
+
+        let permission : SdkTypes.CommunityPermission = switch (permissionString) {
+            case ("ChangeRoles") #changeRoles;
+            case ("UpdateDetails") #updateDetails;
+            case ("InviteUsers") #inviteUsers;
+            case ("RemoveMembers") #removeMembers;
+            case ("CreatePublicChannel") #createPublicChannel;
+            case ("CreatePrivateChannel") #createPrivateChannel;
+            case ("ManageUserGroups") #manageUserGroups;
+            case (_) return #err("Invalid community permission: " # permissionString);
+        };
+        #ok(permission);
     };
 
     public func deserializeBotActionByApiKey(dataJson : Json.Json) : Result.Result<SdkTypes.BotActionByApiKey, Text> {
@@ -561,61 +800,6 @@ module {
             name = name;
             value = value;
         });
-    };
-
-    private func deserializeMessagePermission(json : Json.Json) : Result.Result<SdkTypes.MessagePermission, Text> {
-        let #string(permissionString) = json else return #err("Invalid message permission, expected string value");
-
-        let permission : SdkTypes.MessagePermission = switch (permissionString) {
-            case ("Text") #text;
-            case ("Image") #image;
-            case ("Video") #video;
-            case ("Audio") #audio;
-            case ("File") #file;
-            case ("Poll") #poll;
-            case ("Crypto") #crypto;
-            case ("Giphy") #giphy;
-            case ("Prize") #prize;
-            case ("P2pSwap") #p2pSwap;
-            case ("VideoCall") #videoCall;
-            case (_) return #err("Invalid message permission: " # permissionString);
-        };
-        #ok(permission);
-    };
-
-    private func deserializeGroupPermission(json : Json.Json) : Result.Result<SdkTypes.GroupPermission, Text> {
-        let #string(permissionString) = json else return #err("Invalid group permission, expected string value");
-
-        let permission : SdkTypes.GroupPermission = switch (permissionString) {
-            case ("ChangeRoles") #changeRoles;
-            case ("UpdateGroup") #updateGroup;
-            case ("AddMembers") #addMembers;
-            case ("InviteUsers") #inviteUsers;
-            case ("RemoveMembers") #removeMembers;
-            case ("DeleteMessages") #deleteMessages;
-            case ("PinMessages") #pinMessages;
-            case ("ReactToMessages") #reactToMessages;
-            case ("MentionAllMembers") #mentionAllMembers;
-            case ("StartVideoCall") #startVideoCall;
-            case (_) return #err("Invalid group permission: " # permissionString);
-        };
-        #ok(permission);
-    };
-
-    private func deserializeCommunityPermission(json : Json.Json) : Result.Result<SdkTypes.CommunityPermission, Text> {
-        let #string(permissionString) = json else return #err("Invalid community permission, expected string value");
-
-        let permission : SdkTypes.CommunityPermission = switch (permissionString) {
-            case ("ChangeRoles") #changeRoles;
-            case ("UpdateDetails") #updateDetails;
-            case ("InviteUsers") #inviteUsers;
-            case ("RemoveMembers") #removeMembers;
-            case ("CreatePublicChannel") #createPublicChannel;
-            case ("CreatePrivateChannel") #createPrivateChannel;
-            case ("ManageUserGroups") #manageUserGroups;
-            case (_) return #err("Invalid community permission: " # permissionString);
-        };
-        #ok(permission);
     };
 
     private func deserializeBotActionChatDetails(dataJson : Json.Json) : Result.Result<SdkTypes.BotActionChatDetails, Text> {

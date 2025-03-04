@@ -249,6 +249,7 @@ module {
 
     public type AutonomousConfig = {
         permissions : ?BotPermissions;
+        syncApiKey : Bool;
     };
 
     public type SlashCommand = {

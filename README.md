@@ -38,6 +38,7 @@ actor {
                 chat = [];
                 message = [#text];
             };
+            syncApiKey = false;
         };
     };
 
