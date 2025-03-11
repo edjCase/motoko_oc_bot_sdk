@@ -7,6 +7,7 @@ import Time "mo:base/Time";
 import Debug "mo:base/Debug";
 import Error "mo:base/Error";
 import Option "mo:base/Option";
+import Array "mo:base/Array";
 import Json "mo:json";
 import Base64 "mo:base64";
 import SdkTypes "./Types";
@@ -76,7 +77,7 @@ module {
 
         private func executeCommand(request : HttpTypes.UpdateRequest) : async* HttpTypes.UpdateResponse {
             let (statusCode, response) : (Nat16, Json.Json) = try {
-                let commandResponse = await* parseAndExecuteAction(request.body);
+                let commandResponse = await* parseAndExecuteAction(request);
                 switch (commandResponse) {
                     case (#success(success)) (200, SdkSerializer.serializeSuccess(success));
                     case (#badRequest(badRequest)) (400, SdkSerializer.serializeBadRequest(badRequest));
@@ -134,11 +135,15 @@ module {
             };
         };
 
-        private func parseAndExecuteAction(body : Blob) : async* SdkTypes.CommandResponse {
-            let jwtData : JwtData = switch (verifyJwt(body, openChatPublicKey)) {
+        private func parseAndExecuteAction(request : HttpTypes.UpdateRequest) : async* SdkTypes.CommandResponse {
+            let ?(_, jwt) = Array.find(request.headers, func(header : (Text, Text)) : Bool = "x-oc-jwt" == header.0) else return #badRequest(#accessTokenNotFound);
+            let jwtData : JwtData = switch (verifyJwt(jwt, openChatPublicKey)) {
                 case (#ok(result)) result;
                 case (#err(#expired(_))) return #badRequest(#accessTokenExpired);
-                case (#err(#invalidSignature)) return #badRequest(#accessTokenInvalid);
+                case (#err(#invalidSignature)) {
+                    Debug.print("Invalid signature in JWT");
+                    return #badRequest(#accessTokenInvalid);
+                };
                 case (#err(#jwtNotFound)) return #badRequest(#accessTokenNotFound);
                 case (#err(#parseError(parseError))) {
                     Debug.print("Failed to parse JWT: " # parseError);
@@ -172,9 +177,7 @@ module {
             #jwtNotFound;
         };
 
-        private func verifyJwt(body : Blob, publicKeyBytes : Blob) : Result.Result<JwtData, VerifyJwtError> {
-
-            let ?jwt = Text.decodeUtf8(body) else return #err(#parseError("Unable to decode body as UTF-8"));
+        private func verifyJwt(jwt : Text, publicKeyBytes : Blob) : Result.Result<JwtData, VerifyJwtError> {
 
             // Split JWT into parts
             let parts = Text.split(jwt, #char('.')) |> Iter.toArray(_);

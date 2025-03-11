@@ -3,7 +3,7 @@ import Sdk "../src";
 import Text "mo:base/Text";
 
 actor {
-    let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEda9kd+GvW92seQZxd93XhxiRh5/kaBfoMLj92ycLFzaUkbe/RuhKmruuXZgy4GnWb5SACVYT8M4fNG2VMMrcXw==");
+    let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYCx5zdXY5wqRfBZd7lu/BGAfKTj7ibdNDfYSIshHJYxoKZ1PRCzGmES21MA86pR9dmUYg53MONplG4ERNTsHJA==");
 
     let botSchema : Sdk.BotSchema = {
         description = "Echo Bot";

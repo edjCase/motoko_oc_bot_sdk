@@ -279,6 +279,7 @@ module {
         minLength : Nat;
         maxLength : Nat;
         choices : [StringChoice];
+        multiLine : Bool;
     };
 
     public type NumberParam = {

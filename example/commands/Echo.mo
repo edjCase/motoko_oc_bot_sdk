@@ -39,6 +39,7 @@ module {
                     choices = [];
                     minLength = 1;
                     maxLength = 100;
+                    multiLine = false;
                 });
             }];
             permissions = {
