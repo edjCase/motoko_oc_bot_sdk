@@ -1,8 +1,10 @@
 import Echo "./commands/Echo";
 import Sdk "../src";
 import Text "mo:base/Text";
+import Timer "mo:base/Timer";
+import TimerHandler "./TimerHandler";
 
-actor {
+actor Actor {
     let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5nMJ1Anpc2OrU6yhIYb0pacJuCAMC6CZVvFrkbc+JRplyWNfYSPWZ2EzdEEWdz9irZWhq0Pn4iG4Jhl8+I2rfA==");
 
     let botSchema : Sdk.BotSchema = {
@@ -17,7 +19,11 @@ actor {
             syncApiKey = true;
         };
     };
-    var apiKey : ?Text = null;
+    stable var apiKey : ?Text = null;
+
+    stable let timerIds : [Timer.TimerId] = [];
+
+    let timerHandler = TimerHandler.TimerHandler(timerIds);
 
     private func execute(action : Sdk.BotAction) : async* Sdk.CommandResponse {
         switch (action) {
@@ -32,7 +38,7 @@ actor {
             case (#community(_)) null;
         };
         switch (action.command.name) {
-            case ("echo") await* Echo.execute(messageId, action.command.args);
+            case ("echo") await* Echo.execute(messageId, action.command.args, timerHandler);
             case ("sync_api_key") {
                 if (action.command.args.size() < 1) return #badRequest(#argsInvalid);
                 let #string(value) = action.command.args[0].value else return #badRequest(#argsInvalid);

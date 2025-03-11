@@ -4,6 +4,7 @@ import Result "mo:base/Result";
 import Array "mo:base/Array";
 import Iter "mo:base/Iter";
 import Int "mo:base/Int";
+import TimerHandler "../TimerHandler";
 
 module {
 
@@ -12,7 +13,7 @@ module {
         repeat : Nat;
     };
 
-    public func execute(messageId : ?Sdk.MessageId, args : [Sdk.CommandArg]) : async* Sdk.CommandResponse {
+    public func execute<system>(messageId : ?Sdk.MessageId, args : [Sdk.CommandArg], timerHandler : TimerHandler.TimerHandler) : async* Sdk.CommandResponse {
         let echoArgs = switch (parseMessage(args)) {
             case (#ok(message)) message;
             case (#err(response)) return response;
@@ -20,17 +21,22 @@ module {
 
         let messageOrNull : ?Sdk.Message = switch (messageId) {
             case (?id) {
-                // TODO
-                var message = echoArgs.message;
                 if (echoArgs.repeat > 0) {
+                    // Echo X MORE times, once every 10 seconds
+                    let secondOffset = 10;
                     for (i in Iter.range(1, echoArgs.repeat)) {
-                        message #= " " # echoArgs.message;
+                        timerHandler.addTimer<system>(
+                            #seconds(secondOffset * i),
+                            func() : async () {
+                                Debug.print("Echo: " # echoArgs.message);
+                            },
+                        );
                     };
                 };
                 ?{
                     id = id;
                     content = #text({
-                        text = "Echo: " # message;
+                        text = "Echo: " # echoArgs.message;
                     });
                     finalised = true;
                 };
