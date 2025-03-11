@@ -122,6 +122,7 @@ module {
                     choices = [];
                     minLength = 1;
                     maxLength = 100;
+                    multiLine = true;
                 });
             }];
             permissions = {

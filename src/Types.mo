@@ -272,29 +272,37 @@ module {
         #userParam;
         #booleanParam;
         #stringParam : StringParam;
-        #numberParam : NumberParam;
+        #integerParam : IntegerParam;
+        #decimalParam : DecimalParam;
+        #dateTimeParam : DateTimeParam;
     };
 
     public type StringParam = {
         minLength : Nat;
         maxLength : Nat;
-        choices : [StringChoice];
+        choices : [BotCommandOptionChoice<Text>];
         multiLine : Bool;
     };
 
-    public type NumberParam = {
-        minLength : Nat;
-        maxLength : Nat;
-        choices : [NumberChoice];
+    public type IntegerParam = {
+        minValue : Int;
+        maxValue : Int;
+        choices : [BotCommandOptionChoice<Int>];
     };
 
-    public type StringChoice = {
-        name : Text;
-        value : Text;
+    public type DecimalParam = {
+        minValue : Float;
+        maxValue : Float;
+        choices : [BotCommandOptionChoice<Float>];
     };
 
-    public type NumberChoice = {
-        name : Text;
-        value : Nat;
+    public type DateTimeParam = {
+        futureOnly : Bool;
     };
+
+    public type BotCommandOptionChoice<T> = {
+        name : Text;
+        value : T;
+    };
+
 };

@@ -73,40 +73,53 @@ module {
             case (#userParam) #string("UserParam");
             case (#booleanParam) #string("BooleanParam");
             case (#stringParam(strParam)) #object_([("StringParam", serializeStringParam(strParam))]);
-            case (#numberParam(numParam)) #object_([("NumberParam", serializeNumberParam(numParam))]);
+            case (#integerParam(numParam)) #object_([("IntegerParam", serializeIntegerParam(numParam))]);
+            case (#decimalParam(decParam)) #object_([("DecimalParam", serializeDecimalParam(decParam))]);
+            case (#dateTimeParam(dateTimeParam)) #object_([("DateTimeParam", serializeDateTimeParam(dateTimeParam))]);
         };
     };
 
     private func serializeStringParam(param : SdkTypes.StringParam) : Json.Json {
+        let choiceSerializer = func(choice : SdkTypes.BotCommandOptionChoice<Text>) : Json.Json = serializeChoice<Text>(choice.name, #string(choice.value));
         #object_([
             ("min_length", #number(#int(param.minLength))),
             ("max_length", #number(#int(param.maxLength))),
-            ("choices", serializeArrayOfValues(param.choices, serializeStringChoice)),
+            ("choices", serializeArrayOfValues(param.choices, choiceSerializer)),
             ("multi_line", #bool(param.multiLine)),
         ]);
     };
 
-    private func serializeNumberParam(param : SdkTypes.NumberParam) : Json.Json {
+    private func serializeIntegerParam(param : SdkTypes.IntegerParam) : Json.Json {
+        let choiceSerializer = func(choice : SdkTypes.BotCommandOptionChoice<Int>) : Json.Json = serializeChoice<Int>(choice.name, #number(#int(choice.value)));
         #object_([
-            ("min_length", #number(#int(param.minLength))),
-            ("max_length", #number(#int(param.maxLength))),
-            ("choices", serializeArrayOfValues(param.choices, serializeNumberChoice)),
+            ("min_value", #number(#int(param.minValue))),
+            ("max_value", #number(#int(param.maxValue))),
+            ("choices", serializeArrayOfValues(param.choices, choiceSerializer)),
         ]);
     };
 
-    private func serializeStringChoice(choice : SdkTypes.StringChoice) : Json.Json {
+    private func serializeDecimalParam(param : SdkTypes.DecimalParam) : Json.Json {
+        let choiceSerializer = func(choice : SdkTypes.BotCommandOptionChoice<Float>) : Json.Json = serializeChoice<Float>(choice.name, #number(#float(choice.value)));
         #object_([
-            ("name", #string(choice.name)),
-            ("value", #string(choice.value)),
+            ("min_value", #number(#float(param.minValue))),
+            ("max_value", #number(#float(param.maxValue))),
+            ("choices", serializeArrayOfValues(param.choices, choiceSerializer)),
         ]);
     };
 
-    private func serializeNumberChoice(choice : SdkTypes.NumberChoice) : Json.Json {
+    private func serializeDateTimeParam(param : SdkTypes.DateTimeParam) : Json.Json {
         #object_([
-            ("name", #string(choice.name)),
-            ("value", #number(#int(choice.value))),
+            ("future_only", #bool(param.futureOnly)),
         ]);
     };
+
+    private func serializeChoice<T>(name : Text, value : Json.Json) : Json.Json {
+        #object_([
+            ("name", #string(name)),
+            ("value", value),
+        ]);
+    };
+
     private func serializeBotPermissions(permissions : SdkTypes.BotPermissions) : Json.Json {
         let encodedCommunityPermissions = encodePermissions(
             permissions.community,

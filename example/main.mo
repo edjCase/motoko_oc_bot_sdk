@@ -3,7 +3,7 @@ import Sdk "../src";
 import Text "mo:base/Text";
 
 actor {
-    let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYCx5zdXY5wqRfBZd7lu/BGAfKTj7ibdNDfYSIshHJYxoKZ1PRCzGmES21MA86pR9dmUYg53MONplG4ERNTsHJA==");
+    let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5nMJ1Anpc2OrU6yhIYb0pacJuCAMC6CZVvFrkbc+JRplyWNfYSPWZ2EzdEEWdz9irZWhq0Pn4iG4Jhl8+I2rfA==");
 
     let botSchema : Sdk.BotSchema = {
         description = "Echo Bot";
@@ -14,9 +14,10 @@ actor {
                 chat = [];
                 message = [#text];
             };
-            syncApiKey = false;
+            syncApiKey = true;
         };
     };
+    var apiKey : ?Text = null;
 
     private func execute(action : Sdk.BotAction) : async* Sdk.CommandResponse {
         switch (action) {
@@ -32,6 +33,12 @@ actor {
         };
         switch (action.command.name) {
             case ("echo") await* Echo.execute(messageId, action.command.args);
+            case ("sync_api_key") {
+                if (action.command.args.size() < 1) return #badRequest(#argsInvalid);
+                let #string(value) = action.command.args[0].value else return #badRequest(#argsInvalid);
+                apiKey := ?value;
+                #success({ message = null });
+            };
             case (_) #badRequest(#commandNotFound);
         };
     };
