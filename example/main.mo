@@ -25,20 +25,21 @@ actor Actor {
 
     let timerHandler = TimerHandler.TimerHandler(timerIds);
 
-    private func execute(action : Sdk.BotAction) : async* Sdk.CommandResponse {
-        switch (action) {
-            case (#command(commandAction)) await* executeCommandAction(commandAction);
+    private func execute(context : Sdk.ExecuteContext) : async* Sdk.CommandResponse {
+        switch (context.action) {
+            case (#command(commandAction)) await* executeCommandAction(commandAction, context.jwt);
             case (#apiKey(apiKeyAction)) await* executeApiKeyAction(apiKeyAction);
         };
     };
 
-    private func executeCommandAction(action : Sdk.BotActionByCommand) : async* Sdk.CommandResponse {
+    private func executeCommandAction(action : Sdk.BotActionByCommand, jwt : Text) : async* Sdk.CommandResponse {
         let messageId = switch (action.scope) {
             case (#chat(chatDetails)) ?chatDetails.messageId;
             case (#community(_)) null;
         };
+        let client = Sdk.Client(action.botApiGateway, #jwt(jwt));
         switch (action.command.name) {
-            case ("echo") await* Echo.execute(messageId, action.command.args, timerHandler);
+            case ("echo") await* Echo.execute(messageId, action.command.args, timerHandler, client);
             case ("sync_api_key") {
                 if (action.command.args.size() < 1) return #badRequest(#argsInvalid);
                 let #string(value) = action.command.args[0].value else return #badRequest(#argsInvalid);

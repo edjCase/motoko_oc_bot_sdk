@@ -13,7 +13,12 @@ module {
         repeat : Nat;
     };
 
-    public func execute<system>(messageId : ?Sdk.MessageId, args : [Sdk.CommandArg], timerHandler : TimerHandler.TimerHandler) : async* Sdk.CommandResponse {
+    public func execute<system>(
+        messageId : ?Sdk.MessageId,
+        args : [Sdk.CommandArg],
+        timerHandler : TimerHandler.TimerHandler,
+        ocClient : Sdk.Client,
+    ) : async* Sdk.CommandResponse {
         let echoArgs = switch (parseMessage(args)) {
             case (#ok(message)) message;
             case (#err(response)) return response;
@@ -28,7 +33,8 @@ module {
                         timerHandler.addTimer<system>(
                             #seconds(secondOffset * i),
                             func() : async () {
-                                Debug.print("Echo: " # echoArgs.message);
+                                let result = await* ocClient.sendMessage(#text({ text = "Echo: " # echoArgs.message }));
+                                Debug.print("Result: " # debug_show (result));
                             },
                         );
                     };
@@ -38,6 +44,8 @@ module {
                     content = #text({
                         text = "Echo: " # echoArgs.message;
                     });
+                    blockLevelMarkdown = false;
+                    ephemeral = false;
                     finalised = true;
                 };
             };

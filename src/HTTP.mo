@@ -20,7 +20,7 @@ module {
 
     public class HttpHandler(
         botSchema : SdkTypes.BotSchema,
-        execute : SdkTypes.BotAction -> async* SdkTypes.CommandResponse,
+        execute : SdkTypes.ExecuteContext -> async* SdkTypes.CommandResponse,
         // getBotMetrics : () -> [(Text, Json.Json)],
         // getBlobData : Text -> ?BlobData.BlobData,
         openChatPublicKey : Blob,
@@ -161,7 +161,7 @@ module {
                 };
                 case (c) return #internalError(#invalid("Invalid 'claim_type' field in claims: " # c));
             };
-            await* execute(action);
+            await* execute({ action; jwt });
         };
 
         private type JwtData = {

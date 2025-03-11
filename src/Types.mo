@@ -1,5 +1,6 @@
 import Principal "mo:base/Principal";
 import Bool "mo:base/Bool";
+import Nat8 "mo:base/Nat8";
 
 module {
     public type CanisterId = Principal;
@@ -11,6 +12,7 @@ module {
     public type Nanoseconds = Nat;
     public type MessageId = Text; // Nat64 encoded as string or any other unique identifier
     public type MessageIndex = Nat;
+    public type EventIndex = Nat;
     public type Hash = [Nat8]; // 32 bytes
 
     public type Command = {
@@ -46,6 +48,8 @@ module {
         id : MessageId;
         content : MessageContent;
         finalised : Bool;
+        blockLevelMarkdown : Bool;
+        ephemeral : Bool;
     };
 
     public type MessageContent = {
@@ -56,6 +60,11 @@ module {
         #file : FileContent;
         #poll : PollContent;
         #giphy : GiphyContent;
+        #custom : CustomContent;
+    };
+
+    public type MessageContentOrUnsupported = MessageContent or {
+        #unsupported : UnsupporedContent;
     };
 
     public type TextContent = {
@@ -130,6 +139,15 @@ module {
         mimeType : Text;
     };
 
+    public type CustomContent = {
+        kind : Text;
+        data : [Nat8];
+    };
+
+    public type UnsupporedContent = {
+        kind : Text;
+    };
+
     public type BadRequestResult = {
         #accessTokenNotFound;
         #accessTokenInvalid;
@@ -151,6 +169,11 @@ module {
     };
 
     public type C2CError = (Int, Text);
+
+    public type ExecuteContext = {
+        action : BotAction;
+        jwt : Text;
+    };
 
     public type BotAction = {
         #command : BotActionByCommand;
@@ -303,6 +326,43 @@ module {
     public type BotCommandOptionChoice<T> = {
         name : Text;
         value : T;
+    };
+
+    public type SendMessageArgs = {
+        channelId : ?ChannelId;
+        messageId : ?Nat;
+        content : MessageContent;
+        blockLevelMarkdown : Bool;
+        finalized : Bool;
+        authToken : AuthToken;
+    };
+
+    public type SendMessageResponse = {
+        #success : SendMessageSuccessResult;
+        #failedAuthentication : Text;
+        #invalidRequest : Text;
+        #notAuthorized;
+        #frozen;
+        #threadNotFound;
+        #messageAlreadyFinalised;
+        #c2cError : C2CError;
+    };
+
+    public type SendMessageSuccessResult = {
+        messageId : MessageId;
+        eventIndex : EventIndex;
+        messageIndex : MessageIndex;
+        timestamp : TimestampMillis;
+        expiresAt : ?TimestampMillis;
+    };
+
+    public type AuthToken = {
+        #jwt : Text;
+        #apiKey : Text;
+    };
+
+    public type BotApiGatewayActor = actor {
+        bot_send_message : (SendMessageArgs) -> async SendMessageResponse;
     };
 
 };
