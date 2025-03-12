@@ -10,6 +10,7 @@ import Array "mo:base/Array";
 import Nat32 "mo:base/Nat32";
 import SdkTypes "./Types";
 import IterTools "mo:itertools/Iter";
+import Base64 "mo:base64";
 
 module {
 
@@ -225,6 +226,7 @@ module {
             case (#file(file)) ("File", serializeFileContent(file));
             case (#poll(poll)) ("Poll", serializePollContent(poll));
             case (#giphy(giphy)) ("Giphy", serializeGiphyContent(giphy));
+            case (#custom(custom)) ("Custom", serializeCustomContent(custom));
         };
         serializeVariantWithValue(kind, value);
     };
@@ -328,6 +330,15 @@ module {
             ("title", #string(giphy.title)),
             ("desktop", serializeGiphyImageVariant(giphy.desktop)),
             ("mobile", serializeGiphyImageVariant(giphy.mobile)),
+        ]);
+    };
+
+    private func serializeCustomContent(custom : SdkTypes.CustomContent) : Json.Json {
+        let base64Engine = Base64.Base64(#v(Base64.V2), ?false);
+        let dataText = base64Engine.encode(#bytes(custom.data));
+        #object_([
+            ("kind", #string(custom.kind)),
+            ("data", #string(dataText)),
         ]);
     };
 

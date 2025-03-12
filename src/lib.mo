@@ -20,8 +20,6 @@ module {
     public type ExecuteContext = Types.ExecuteContext;
     public type AuthToken = Types.AuthToken;
 
-    public type BotApiGatewayActor = Types.BotApiGatewayActor;
-
     public type Client = ClientModule.Client;
     public func Client(
         botApiGateway : Principal,

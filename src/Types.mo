@@ -328,41 +328,9 @@ module {
         value : T;
     };
 
-    public type SendMessageArgs = {
-        channelId : ?ChannelId;
-        messageId : ?Nat;
-        content : MessageContent;
-        blockLevelMarkdown : Bool;
-        finalized : Bool;
-        authToken : AuthToken;
-    };
-
-    public type SendMessageResponse = {
-        #success : SendMessageSuccessResult;
-        #failedAuthentication : Text;
-        #invalidRequest : Text;
-        #notAuthorized;
-        #frozen;
-        #threadNotFound;
-        #messageAlreadyFinalised;
-        #c2cError : C2CError;
-    };
-
-    public type SendMessageSuccessResult = {
-        messageId : MessageId;
-        eventIndex : EventIndex;
-        messageIndex : MessageIndex;
-        timestamp : TimestampMillis;
-        expiresAt : ?TimestampMillis;
-    };
-
     public type AuthToken = {
         #jwt : Text;
         #apiKey : Text;
-    };
-
-    public type BotApiGatewayActor = actor {
-        bot_send_message : (SendMessageArgs) -> async SendMessageResponse;
     };
 
 };

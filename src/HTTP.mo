@@ -213,9 +213,7 @@ module {
             };
             let ?signature = ECDSA.deserializeSignatureRaw(signatureBytes) else return #err(#invalidSignature);
             let normalizedSig = ECDSA.normalizeSignature(curve, signature);
-            Debug.print("Normalized signature: " # debug_show (normalizedSig));
             let true = ECDSA.verify(curve, publicKey, messageBytes.vals(), normalizedSig) else return #err(#invalidSignature);
-            Debug.print("Signature verified");
 
             // Decode and parse claims
             let claimsBytes = base64Engine.decode(claimsJson); // TODO handle error
