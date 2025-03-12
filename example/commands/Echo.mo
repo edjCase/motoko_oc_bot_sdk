@@ -4,6 +4,7 @@ import Result "mo:base/Result";
 import Array "mo:base/Array";
 import Iter "mo:base/Iter";
 import Int "mo:base/Int";
+import Error "mo:base/Error";
 import TimerHandler "../TimerHandler";
 
 module {
@@ -33,8 +34,13 @@ module {
                         timerHandler.addTimer<system>(
                             #seconds(secondOffset * i),
                             func() : async () {
-                                let result = await* ocClient.sendMessage(#text({ text = "Echo: " # echoArgs.message }));
-                                Debug.print("Result: " # debug_show (result));
+                                Debug.print("Echoing message: " # id # ", Text: " # echoArgs.message);
+                                try {
+                                    let result = await* ocClient.sendMessage(1, #text({ text = "Echo: " # echoArgs.message }));
+                                    Debug.print("Result: " # debug_show (result));
+                                } catch (error) {
+                                    Debug.print("Error: " # Error.message(error));
+                                };
                             },
                         );
                     };

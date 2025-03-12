@@ -19,7 +19,7 @@ module {
                 message_id = null;
                 content = mappedMessage;
                 block_level_markdown = false;
-                finalised = true;
+                finalised = false;
                 auth_token = authToken;
             });
         };
@@ -121,12 +121,11 @@ module {
         #Frozen;
         #ThreadNotFound;
         #MessageAlreadyFinalised;
-        #C2cError : C2CError;
+        #C2CError : (Int32, Text);
     };
-    public type C2CError = (Int32, Text);
 
     public type SendMessageSuccessResult = {
-        message_id : Text;
+        message_id : Nat64;
         event_index : Nat32;
         message_index : Nat32;
         timestamp : Nat64; // milliseconds
