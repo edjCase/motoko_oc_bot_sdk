@@ -1,7 +1,8 @@
-import HTTP "./HTTP";
+import HttpHandlerModule "./HttpHandler";
 import Types "./Types";
 import HttpTypes "mo:http-types";
-import ClientModule "./Client";
+import OpenChatApi "./OpenChatApi";
+import ExecutionContext "ExecutionContext";
 
 module {
     public type HttpRequest = HttpTypes.Request;
@@ -17,27 +18,22 @@ module {
     public type Message = Types.Message;
     public type CommandArg = Types.CommandArg;
     public type SlashCommand = Types.SlashCommand;
-    public type ExecuteContext = Types.ExecuteContext;
-    public type AuthToken = Types.AuthToken;
+    public type CommandExecutionContext = ExecutionContext.CommandExecutionContext;
+    public type Events = HttpHandlerModule.Events;
 
-    public type Client = ClientModule.Client;
-    public func Client(
-        botApiGateway : Principal,
-        authToken : AuthToken,
-    ) : Client = ClientModule.Client(
-        botApiGateway,
-        authToken,
-    );
+    public type BotApiActor = OpenChatApi.BotApiActor;
 
-    public type HttpHandler = HTTP.HttpHandler;
+    public type HttpHandler = HttpHandlerModule.HttpHandler;
     public func HttpHandler(
         botSchema : BotSchema,
-        execute : ExecuteContext -> async* CommandResponse,
         openChatPublicKey : Blob,
-    ) : HttpHandler = HTTP.HttpHandler(
+        apiKey : ?Text,
+        events : HttpHandlerModule.Events,
+    ) : HttpHandler = HttpHandlerModule.HttpHandler(
         botSchema,
-        execute,
         openChatPublicKey,
+        apiKey,
+        events,
     );
 
 };

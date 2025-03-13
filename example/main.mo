@@ -1,11 +1,9 @@
 import Echo "./commands/Echo";
 import Sdk "../src";
 import Text "mo:base/Text";
-import Timer "mo:base/Timer";
-import TimerHandler "./TimerHandler";
 
 actor Actor {
-    let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5nMJ1Anpc2OrU6yhIYb0pacJuCAMC6CZVvFrkbc+JRplyWNfYSPWZ2EzdEEWdz9irZWhq0Pn4iG4Jhl8+I2rfA==");
+    let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEVbUGV60FvFD/lHH9bIfvqXUo7fBqDqKmt/mG64jNpOmVjH/rDn92G2tBrFOpQRIuFeFXZTFWSUIfAeBhyqTmXw==");
 
     let botSchema : Sdk.BotSchema = {
         description = "Echo Bot";
@@ -21,42 +19,23 @@ actor Actor {
     };
     stable var apiKey : ?Text = null;
 
-    stable let timerIds : [Timer.TimerId] = [];
-
-    let timerHandler = TimerHandler.TimerHandler(timerIds);
-
-    private func execute(context : Sdk.ExecuteContext) : async* Sdk.CommandResponse {
-        switch (context.action) {
-            case (#command(commandAction)) await* executeCommandAction(commandAction, context.jwt);
-            case (#apiKey(apiKeyAction)) await* executeApiKeyAction(apiKeyAction);
-        };
-    };
-
-    private func executeCommandAction(action : Sdk.BotActionByCommand, jwt : Text) : async* Sdk.CommandResponse {
-        let messageId = switch (action.scope) {
-            case (#chat(chatDetails)) ?chatDetails.messageId;
-            case (#community(_)) null;
-        };
-        let client = Sdk.Client(action.botApiGateway, #jwt(jwt));
-        switch (action.command.name) {
-            case ("echo") await* Echo.execute(messageId, action.command.args, timerHandler, client);
-            case ("sync_api_key") {
-                if (action.command.args.size() < 1) return #badRequest(#argsInvalid);
-                let #string(value) = action.command.args[0].value else return #badRequest(#argsInvalid);
-                apiKey := ?value;
-                #success({ message = null });
-            };
+    private func executeCommandAction(context : Sdk.CommandExecutionContext) : async* Sdk.CommandResponse {
+        switch (context.action.command.name) {
+            case ("echo") await* Echo.execute(context);
             case (_) #badRequest(#commandNotFound);
         };
     };
 
-    private func executeApiKeyAction(action : Sdk.BotActionByApiKey) : async* Sdk.CommandResponse {
-        switch (action.scope) {
-            case (_) #badRequest(#commandNotFound);
-        };
+    private func syncApiKey(key : Text) {
+        apiKey := ?key;
     };
 
-    let handler = Sdk.HttpHandler(botSchema, execute, openChatPublicKey);
+    let events : Sdk.Events = {
+        onCommandAction = ?executeCommandAction;
+        onSyncApiKey = ?syncApiKey;
+    };
+
+    let handler = Sdk.HttpHandler(botSchema, openChatPublicKey, apiKey, events);
 
     public query func http_request(request : Sdk.HttpRequest) : async Sdk.HttpResponse {
         handler.http_request(request);

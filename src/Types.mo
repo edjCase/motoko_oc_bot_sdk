@@ -10,7 +10,7 @@ module {
     public type TimestampNanos = Nat;
     public type Milliseconds = Nat;
     public type Nanoseconds = Nat;
-    public type MessageId = Text; // Nat64 encoded as string or any other unique identifier
+    public type MessageId = Nat;
     public type MessageIndex = Nat;
     public type EventIndex = Nat;
     public type Hash = [Nat8]; // 32 bytes
@@ -169,11 +169,6 @@ module {
     };
 
     public type C2CError = (Int, Text);
-
-    public type ExecuteContext = {
-        action : BotAction;
-        jwt : Text;
-    };
 
     public type BotAction = {
         #command : BotActionByCommand;

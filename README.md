@@ -2,7 +2,7 @@
 
 This is a library that allows easy development of OpenChat's bot API
 
-NOTE: This is in early development and only supports commands, not api key calls yet
+NOTE: This is in early development and not all features are supported
 
 # Package
 
@@ -22,12 +22,11 @@ Simple example that prompts for some text, then the bot returns that same text
 
 ```motoko
 import Echo "./commands/Echo";
-import Sdk "mo:openchat-bot-sdk";
+import Sdk "../src";
 import Text "mo:base/Text";
 
-actor {
-    // Update this based on your open chat instance public key
-    let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5GaOVUjuWn59a8Bp79694D5KClL77iirARZNAzxLY2U4HYcEbU+PtOfM8/00Ovo+2uSbFhsCQPw+ijM3pf6OOQ==");
+actor Actor {
+    let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEVbUGV60FvFD/lHH9bIfvqXUo7fBqDqKmt/mG64jNpOmVjH/rDn92G2tBrFOpQRIuFeFXZTFWSUIfAeBhyqTmXw==");
 
     let botSchema : Sdk.BotSchema = {
         description = "Echo Bot";
@@ -38,35 +37,28 @@ actor {
                 chat = [];
                 message = [#text];
             };
-            syncApiKey = false;
+            syncApiKey = true;
         };
     };
+    stable var apiKey : ?Text = null;
 
-    private func execute(action : Sdk.BotAction) : async* Sdk.CommandResponse {
-        switch (action) {
-            case (#command(commandAction)) await* executeCommandAction(commandAction);
-            case (#apiKey(apiKeyAction)) await* executeApiKeyAction(apiKeyAction);
-        };
-    };
-
-    private func executeCommandAction(action : Sdk.BotActionByCommand) : async* Sdk.CommandResponse {
-        let messageId = switch (action.scope) {
-            case (#chat(chatDetails)) ?chatDetails.messageId;
-            case (#community(_)) null;
-        };
-        switch (action.command.name) {
-            case ("echo") await* Echo.execute(messageId, action.command.args);
+    private func executeCommandAction(context : Sdk.CommandExecutionContext) : async* Sdk.CommandResponse {
+        switch (context.action.command.name) {
+            case ("echo") await* Echo.execute(context);
             case (_) #badRequest(#commandNotFound);
         };
     };
 
-    private func executeApiKeyAction(action : Sdk.BotActionByApiKey) : async* Sdk.CommandResponse {
-        switch (action.scope) {
-            case (_) #badRequest(#commandNotFound);
-        };
+    private func syncApiKey(key : Text) {
+        apiKey := ?key;
     };
 
-    let handler = Sdk.HttpHandler(botSchema, execute, openChatPublicKey);
+    let events : Sdk.Events = {
+        onCommandAction = ?executeCommandAction;
+        onSyncApiKey = ?syncApiKey;
+    };
+
+    let handler = Sdk.HttpHandler(botSchema, openChatPublicKey, apiKey, events);
 
     public query func http_request(request : Sdk.HttpRequest) : async Sdk.HttpResponse {
         handler.http_request(request);
@@ -81,30 +73,77 @@ actor {
 ## commands/Echo.mo
 
 ```motoko
-import Sdk "mo:openchat-bot-sdk";
+import Sdk "../../src";
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
+import Array "mo:base/Array";
+import Iter "mo:base/Iter";
+import Int "mo:base/Int";
+import Error "mo:base/Error";
+import Nat64 "mo:base/Nat64";
+import Nat "mo:base/Nat";
+import Timer "mo:base/Timer";
 
 module {
 
-    public func execute(messageId : ?Sdk.MessageId, args : [Sdk.CommandArg]) : async* Sdk.CommandResponse {
-        let message = switch (parseMessage(args)) {
+    private type EchoArgs = {
+        message : Text;
+        repeat : Nat;
+    };
+
+    public func execute<system>(
+        context : Sdk.CommandExecutionContext
+    ) : async* Sdk.CommandResponse {
+        let echoArgs = switch (parseMessage(context.action.command.args)) {
             case (#ok(message)) message;
             case (#err(response)) return response;
         };
 
-        let messageOrNull : ?Sdk.Message = switch (messageId) {
-            case (?id) ?{
-                id = id;
-                content = #text({
-                    text = "Echo: " # message;
-                });
-                finalised = true;
+        let ?messageId = context.getMessageIdOrNull() else return #success({
+            message = null;
+        });
+        if (echoArgs.repeat > 0) {
+            // Echo X MORE times, once every 10 seconds
+            let secondOffset = 10;
+            for (i in Iter.range(1, echoArgs.repeat)) {
+                ignore Timer.setTimer<system>(
+                    #seconds(secondOffset * i),
+                    func() : async () {
+                        Debug.print("Echoing message: " # Nat.toText(messageId) # ", Text: " # echoArgs.message);
+                        let ?apiKey = context.apiKey else {
+                            Debug.print("Error: Missing API key, make sure to sync it first");
+                            return;
+                        };
+                        try {
+                            let botApiActor = context.getBotApiActor();
+                            let result = await botApiActor.bot_send_message({
+                                channel_id = null;
+                                message_id = ?Nat64.fromNat(messageId);
+                                content = #Text({
+                                    text = "Echo: " # echoArgs.message # " (" # Nat.toText(i) # ")";
+                                });
+                                block_level_markdown = false;
+                                finalised = i == echoArgs.repeat;
+                                auth_token = #ApiKey(apiKey);
+                            });
+                            Debug.print("Result: " # debug_show (result));
+                        } catch (error) {
+                            Debug.print("Error: " # Error.message(error));
+                        };
+                    },
+                );
             };
-            case (_) null;
         };
         #success({
-            message = messageOrNull;
+            message = ?{
+                id = messageId;
+                content = #text({
+                    text = "Echo: " # echoArgs.message;
+                });
+                blockLevelMarkdown = false;
+                ephemeral = false;
+                finalised = false;
+            };
         });
     };
 
@@ -113,18 +152,31 @@ module {
             name = "echo";
             placeholder = null;
             description = "Echo a message";
-            params = [{
-                name = "message";
-                description = "Message to echo";
-                placeholder = null;
-                required = true;
-                paramType = #stringParam({
-                    choices = [];
-                    minLength = 1;
-                    maxLength = 100;
-                    multiLine = true;
-                });
-            }];
+            params = [
+                {
+                    name = "message";
+                    description = "Message to echo";
+                    placeholder = null;
+                    required = true;
+                    paramType = #stringParam({
+                        choices = [];
+                        minLength = 1;
+                        maxLength = 100;
+                        multiLine = true;
+                    });
+                },
+                {
+                    name = "repeat";
+                    description = "Echo X MORE times, once every 10 seconds";
+                    placeholder = null;
+                    required = false;
+                    paramType = #integerParam({
+                        choices = [];
+                        minValue = 0;
+                        maxValue = 20;
+                    });
+                },
+            ];
             permissions = {
                 community = [];
                 chat = [];
@@ -133,14 +185,13 @@ module {
         };
     };
 
-    private func parseMessage(args : [Sdk.CommandArg]) : Result.Result<Text, Sdk.CommandResponse> {
-        if (args.size() != 1) {
-            Debug.print("Invalid request: Only one argument is allowed");
+    private func parseMessage(args : [Sdk.CommandArg]) : Result.Result<EchoArgs, Sdk.CommandResponse> {
+        if (args.size() < 1 or args.size() > 2) {
+            Debug.print("Invalid request: Wrong number of arguments");
             return #err(#badRequest(#argsInvalid));
         };
-        let messageArg = args[0];
-        if (messageArg.name != "message") {
-            Debug.print("Invalid request: Only message argument is allowed");
+        let ?messageArg = getArgOrNull(args, "message") else {
+            Debug.print("Invalid request: Missing message argument");
             return #err(#badRequest(#argsInvalid));
         };
 
@@ -148,9 +199,28 @@ module {
             Debug.print("Invalid request: Message argument must be a string");
             return #err(#badRequest(#argsInvalid));
         };
-        #ok(message);
+
+        let repeatArgs = switch (getArgOrNull(args, "repeat")) {
+            case (?arg) {
+                let #integer(repeat) = arg.value else {
+                    Debug.print("Invalid request: Repeat argument must be a integer");
+                    return #err(#badRequest(#argsInvalid));
+                };
+                Int.abs(repeat);
+            };
+            case (_) 0;
+        };
+        #ok({
+            message = message;
+            repeat = repeatArgs;
+        });
+    };
+
+    private func getArgOrNull(args : [Sdk.CommandArg], name : Text) : ?Sdk.CommandArg {
+        Array.find(args, func(arg : Sdk.CommandArg) : Bool = arg.name == name);
     };
 };
+
 
 ```
 

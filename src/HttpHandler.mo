@@ -15,64 +15,43 @@ import SdkSerializer "./Serializer";
 import SdkDER "./DER";
 import ECDSA "mo:ecdsa";
 import Curve "mo:ecdsa/curve";
+import ExecutionContext "./ExecutionContext";
 
 module {
 
+    public type Events = {
+        onCommandAction : ?(ExecutionContext.CommandExecutionContext -> async* SdkTypes.CommandResponse);
+        onSyncApiKey : ?(Text -> ());
+    };
+
     public class HttpHandler(
         botSchema : SdkTypes.BotSchema,
-        execute : SdkTypes.ExecuteContext -> async* SdkTypes.CommandResponse,
-        // getBotMetrics : () -> [(Text, Json.Json)],
-        // getBlobData : Text -> ?BlobData.BlobData,
         openChatPublicKey : Blob,
+        apiKey_ : ?Text,
+        events : Events,
     ) {
+        var apiKey = apiKey_;
         let base64Engine = Base64.Base64(#v(Base64.V2), ?true);
 
-        public func http_request(request : HttpTypes.Request) : HttpTypes.Response {
-
-            if (request.method == "POST") {
-                // Upgrade request on POST
-                return {
-                    status_code = 200;
-                    headers = [];
-                    body = Blob.fromArray([]);
-                    streaming_strategy = null;
-                    upgrade = ?true;
-                };
+        public func http_request(_ : HttpTypes.Request) : HttpTypes.Response {
+            // TODO cache certified description
+            return {
+                status_code = 200;
+                headers = [];
+                body = Blob.fromArray([]);
+                streaming_strategy = null;
+                upgrade = ?true;
             };
-
-            if (request.method == "GET") {
-                if (request.url == "/metrics") return getMetrics();
-                let blobIdOrNull = Text.stripStart(request.url, #text("/blobs/"));
-                switch (blobIdOrNull) {
-                    case (?blobId) return getBlob(blobId);
-                    case (_) ();
-                };
-                let webhookIdOrNull = Text.stripStart(request.url, #text("/webhook/"));
-                switch (webhookIdOrNull) {
-                    case (?webhookId) return executeWebhook(webhookId);
-                    case (_) ();
-                };
-                return getDescription();
-            };
-            // Not found catch all
-            getNotFoundResponse();
         };
 
         public func http_request_update(request : HttpTypes.UpdateRequest) : async* HttpTypes.UpdateResponse {
 
-            if (request.method == "POST") {
-                // TODO query string (use path not url)
-                if (request.url == "/execute_command") {
-                    return await* executeCommand(request);
-                };
+            // TODO query string (use path not url)
+            if (request.url == "/execute_command") {
+                return await* executeCommand(request);
             };
 
-            // Not found catch all
-            getNotFoundResponse();
-        };
-
-        private func executeWebhook(_webhookId : Text) : HttpTypes.Response {
-            Debug.trap("Webhooks are not implemented yet");
+            getDescription();
         };
 
         private func executeCommand(request : HttpTypes.UpdateRequest) : async* HttpTypes.UpdateResponse {
@@ -95,32 +74,6 @@ module {
                 streaming_strategy = null;
                 upgrade = null;
             };
-        };
-
-        private func getMetrics() : HttpTypes.Response {
-            Debug.trap("Get metrics is not implemented yet");
-            // let metrics = getBotMetrics();
-            // let jsonBytes = Text.encodeUtf8(Json.stringify(#object_(metrics), null));
-            // return {
-            //     status_code = 200;
-            //     headers = [("Content-Type", "application/json")];
-            //     body = jsonBytes;
-            //     streaming_strategy = null;
-            //     upgrade = null;
-            // };
-
-        };
-
-        private func getBlob(_blobId : Text) : HttpTypes.Response {
-            Debug.trap("Get blob is not implemented yet");
-            // let ?blob = getBlobData(blobId) else return getNotFoundResponse();
-            // return {
-            //     status_code = 200;
-            //     headers = [("Content-Type", blob.mimeType)];
-            //     body = blob.data;
-            //     streaming_strategy = null;
-            //     upgrade = null;
-            // };
         };
 
         private func getDescription() : HttpTypes.Response {
@@ -150,18 +103,39 @@ module {
                     return #badRequest(#accessTokenInvalid);
                 };
             };
-            let action : SdkTypes.BotAction = switch (jwtData.claimType) {
+            switch (jwtData.claimType) {
                 case ("BotActionByCommand") switch (SdkSerializer.deserializeBotActionByCommand(jwtData.data)) {
-                    case (#ok(action)) #command(action);
+                    case (#ok(action)) {
+                        // Handle sync API key command
+                        if (action.command.name == "sync_api_key") {
+                            if (action.command.args.size() < 1) return #badRequest(#argsInvalid);
+                            let #string(value) = action.command.args[0].value else return #badRequest(#argsInvalid);
+                            apiKey := ?value;
+                            switch (events.onSyncApiKey) {
+                                case (?onSyncApiKey) onSyncApiKey(value);
+                                case (_) ();
+                            };
+                            return #success({ message = null });
+                        };
+                        switch (events.onCommandAction) {
+                            case (?handler) {
+                                let context = ExecutionContext.CommandExecutionContext(action, jwt, apiKey);
+                                await* handler(context);
+                            };
+                            case (_) return #badRequest(#commandNotFound);
+                        };
+                    };
                     case (#err(e)) return #internalError(#invalid("Failed to deserialize BotActionByCommand: " # e));
                 };
                 case ("BotActionByApiKey") switch (SdkSerializer.deserializeBotActionByApiKey(jwtData.data)) {
-                    case (#ok(action)) #apiKey(action);
+                    case (#ok(_)) {
+                        // TODO not implemented
+                        return #badRequest(#commandNotFound);
+                    };
                     case (#err(e)) return #internalError(#invalid("Failed to deserialize BotActionByApiKey: " # e));
                 };
                 case (c) return #internalError(#invalid("Invalid 'claim_type' field in claims: " # c));
             };
-            await* execute({ action; jwt });
         };
 
         private type JwtData = {
@@ -240,16 +214,6 @@ module {
                     })
 
                 };
-            };
-        };
-
-        private func getNotFoundResponse() : HttpTypes.Response {
-            {
-                status_code = 404;
-                headers = [];
-                body = Blob.fromArray([]);
-                streaming_strategy = null;
-                upgrade = null;
             };
         };
     };

@@ -211,7 +211,7 @@ module {
 
     private func serializeMessage(message : SdkTypes.Message) : Json.Json {
         #object_([
-            ("id", #string(message.id)),
+            ("id", #string(Nat.toText(message.id))),
             ("content", serializeMessageContent(message.content)),
             ("finalised", #bool(message.finalised)),
         ]);
@@ -782,9 +782,13 @@ module {
             case (#err(_)) null; // TODO?
         };
 
-        let messageId = switch (Json.getAsText(dataJson, "message_id")) {
+        let messageIdText = switch (Json.getAsText(dataJson, "message_id")) {
             case (#ok(v)) v;
             case (#err(e)) return #err("Invalid 'message_id' field: " # debug_show (e));
+        };
+
+        let ?messageId = Nat.fromText(messageIdText) else {
+            return #err("Invalid 'message_id' field: " # messageIdText);
         };
 
         #ok({
