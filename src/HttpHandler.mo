@@ -2,12 +2,13 @@ import HttpTypes "mo:http-types";
 import Blob "mo:base/Blob";
 import Text "mo:base/Text";
 import Result "mo:base/Result";
-import Iter "mo:base/Iter";
+import Iter "mo:new-base/Iter";
 import Time "mo:base/Time";
 import Debug "mo:base/Debug";
 import Error "mo:base/Error";
 import Option "mo:base/Option";
 import Array "mo:base/Array";
+import List "mo:new-base/List";
 import Json "mo:json";
 import Base64 "mo:base64";
 import SdkTypes "./Types";
@@ -21,17 +22,54 @@ module {
 
     public type Events = {
         onCommandAction : ?(ExecutionContext.CommandExecutionContext -> async* SdkTypes.CommandResponse);
-        onSyncApiKey : ?(Text -> ());
+        onApiKeyAction : ?(ExecutionContext.ApiKeyExecutionContext -> async* SdkTypes.CommandResponse);
+    };
+
+    public type StableData = {
+        apiKeys : [Text];
     };
 
     public class HttpHandler(
+        apiKeys_ : [Text],
         botSchema : SdkTypes.BotSchema,
         openChatPublicKey : Blob,
-        apiKey_ : ?Text,
         events : Events,
     ) {
-        var apiKey = apiKey_;
         let base64Engine = Base64.Base64(#v(Base64.V2), ?true);
+
+        private func parseApiKeyContext(value : Text) : Result.Result<SdkTypes.ApiKeyContext, Text> {
+            let apiKeyBytes = base64Engine.decode(value);
+            let ?apiKeyText = Text.decodeUtf8(Blob.fromArray(apiKeyBytes)) else return #err("Failed to decode api key as UTF-8");
+            let apiKeyJson = switch (Json.parse(apiKeyText)) {
+                case (#ok(json)) json;
+                case (#err(e)) return #err("Failed to parse api key json: " # debug_show (e));
+            };
+            SdkSerializer.deserializeRawApiKey(apiKeyJson, value);
+        };
+
+        let apiKeys = apiKeys_.values()
+        |> Iter.map(
+            _,
+            func(apiKey : Text) : SdkTypes.ApiKeyContext = switch (parseApiKeyContext(apiKey)) {
+                case (#ok(apiKeyContext)) apiKeyContext;
+                case (#err(e)) Debug.trap("Failed to parse api key: " # e);
+            },
+        )
+        |> List.fromIter<SdkTypes.ApiKeyContext>(_);
+
+        public func toStableData() : StableData {
+            {
+                apiKeys = apiKeys
+                |> List.filterMap<SdkTypes.ApiKeyContext, Text>(
+                    _,
+                    func(apiKey : SdkTypes.ApiKeyContext) : ?Text = switch (apiKey.token) {
+                        case (#jwt(_)) null;
+                        case (#apiKey(apiKey)) ?apiKey;
+                    },
+                )
+                |> List.toArray(_);
+            };
+        };
 
         public func http_request(_ : HttpTypes.Request) : HttpTypes.Response {
             // TODO cache certified description
@@ -104,37 +142,58 @@ module {
                 };
             };
             switch (jwtData.claimType) {
-                case ("BotActionByCommand") switch (SdkSerializer.deserializeBotActionByCommand(jwtData.data)) {
-                    case (#ok(action)) {
-                        // Handle sync API key command
-                        if (action.command.name == "sync_api_key") {
-                            if (action.command.args.size() < 1) return #badRequest(#argsInvalid);
-                            let #string(value) = action.command.args[0].value else return #badRequest(#argsInvalid);
-                            apiKey := ?value;
-                            switch (events.onSyncApiKey) {
-                                case (?onSyncApiKey) onSyncApiKey(value);
-                                case (_) ();
+                case ("BotActionByCommand") switch (SdkSerializer.deserializeJwtCommand(jwtData.data, jwt)) {
+                    case (#ok(context)) {
+                        // Handle sync API key command, if event handler is set, otherwise let it call onCommandAction
+                        if (context.command.name == "sync_api_key") {
+                            if (context.command.args.size() < 1) return #badRequest(#argsInvalid);
+                            let #string(value) = context.command.args[0].value else return #badRequest(#argsInvalid);
+
+                            let apiKeyContext = switch (parseApiKeyContext(value)) {
+                                case (#ok(apiKeyContext)) apiKeyContext;
+                                case (#err(e)) {
+                                    Debug.print("Failed to parse api key: " # e);
+                                    return #badRequest(#argsInvalid);
+                                };
                             };
+                            addOrUpdateApiKey(apiKeyContext);
                             return #success({ message = null });
                         };
-                        switch (events.onCommandAction) {
-                            case (?handler) {
-                                let context = ExecutionContext.CommandExecutionContext(action, jwt, apiKey);
-                                await* handler(context);
-                            };
-                            case (_) return #badRequest(#commandNotFound);
-                        };
+                        let ?handler = events.onCommandAction else return #badRequest(#commandNotFound);
+                        let executionContext = ExecutionContext.CommandExecutionContext(context, getApiKeyByScope);
+                        await* handler(executionContext);
                     };
                     case (#err(e)) return #internalError(#invalid("Failed to deserialize BotActionByCommand: " # e));
                 };
-                case ("BotActionByApiKey") switch (SdkSerializer.deserializeBotActionByApiKey(jwtData.data)) {
-                    case (#ok(_)) {
-                        // TODO not implemented
-                        return #badRequest(#commandNotFound);
+                case ("BotActionByApiKey") switch (SdkSerializer.deserializeJwtApiKey(jwtData.data, jwt)) {
+                    case (#ok(context)) {
+                        let ?handler = events.onApiKeyAction else return #badRequest(#commandNotFound);
+                        let executionContext = ExecutionContext.ApiKeyExecutionContext(context);
+                        await* handler(executionContext);
                     };
                     case (#err(e)) return #internalError(#invalid("Failed to deserialize BotActionByApiKey: " # e));
                 };
                 case (c) return #internalError(#invalid("Invalid 'claim_type' field in claims: " # c));
+            };
+        };
+
+        private func getApiKeyIndexByScope(scope : SdkTypes.ApiKeyScope) : ?Nat {
+            List.firstIndexWhere(
+                apiKeys,
+                func(apiKey : SdkTypes.ApiKeyContext) : Bool = apiKey.scope == scope,
+            );
+        };
+
+        private func getApiKeyByScope(scope : SdkTypes.ApiKeyScope) : ?SdkTypes.ApiKeyContext {
+            let ?currentScopeIndex = getApiKeyIndexByScope(scope) else return null;
+            List.getOpt(apiKeys, currentScopeIndex);
+        };
+
+        private func addOrUpdateApiKey(apiKeyContext : SdkTypes.ApiKeyContext) {
+            let currentScopeIndex = getApiKeyIndexByScope(apiKeyContext.scope);
+            switch (currentScopeIndex) {
+                case (?i) List.put(apiKeys, i, apiKeyContext);
+                case (null) List.add(apiKeys, apiKeyContext);
             };
         };
 

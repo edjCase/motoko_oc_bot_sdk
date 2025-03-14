@@ -171,25 +171,27 @@ module {
     public type C2CError = (Int, Text);
 
     public type BotAction = {
-        #command : BotActionByCommand;
-        #apiKey : BotActionByApiKey;
+        #command : CommandContext;
+        #apiKey : ApiKeyContext;
     };
 
-    public type BotActionByApiKey = {
-        botApiGateway : CanisterId;
-        bot : UserId;
-        scope : AccessTokenScope;
+    public type ApiKeyContext = {
+        token : AuthToken;
+        apiGateway : CanisterId;
+        botId : UserId;
+        scope : ApiKeyScope;
         grantedPermissions : BotPermissions;
     };
 
-    public type AccessTokenScope = {
+    public type ApiKeyScope = {
         #chat : Chat;
         #community : CanisterId;
     };
 
-    public type BotActionByCommand = {
-        botApiGateway : CanisterId;
-        bot : UserId;
+    public type CommandContext = {
+        token : AuthToken;
+        apiGateway : CanisterId;
+        botId : UserId;
         scope : BotActionScope;
         grantedPermissions : BotPermissions;
         command : Command;

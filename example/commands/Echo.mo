@@ -5,9 +5,9 @@ import Array "mo:base/Array";
 import Iter "mo:base/Iter";
 import Int "mo:base/Int";
 import Error "mo:base/Error";
-import Nat64 "mo:base/Nat64";
 import Nat "mo:base/Nat";
 import Timer "mo:base/Timer";
+import Nat64 "mo:base/Nat64";
 
 module {
 
@@ -19,51 +19,42 @@ module {
     public func execute<system>(
         context : Sdk.CommandExecutionContext
     ) : async* Sdk.CommandResponse {
-        let echoArgs = switch (parseMessage(context.action.command.args)) {
+        let echoArgs = switch (parseMessage(context.command.args)) {
             case (#ok(message)) message;
             case (#err(response)) return response;
         };
 
-        let ?messageId = context.getMessageIdOrNull() else return #success({
-            message = null;
-        });
-        if (echoArgs.repeat > 0) {
-            // Echo X MORE times, once every 10 seconds
-            let secondOffset = 10;
-            for (i in Iter.range(1, echoArgs.repeat)) {
-                ignore Timer.setTimer<system>(
-                    #seconds(secondOffset * i),
-                    func() : async () {
-                        Debug.print("Echoing message: " # Nat.toText(messageId) # ", Text: " # echoArgs.message);
-                        let ?apiKey = context.apiKey else {
-                            Debug.print("Error: Missing API key, make sure to sync it first");
-                            return;
-                        };
-                        try {
-                            let botApiActor = context.getBotApiActor();
-                            let result = await botApiActor.bot_send_message({
-                                channel_id = null;
-                                message_id = ?Nat64.fromNat(messageId);
-                                content = #Text({
-                                    text = "Echo: " # echoArgs.message # " (" # Nat.toText(i) # ")";
-                                });
-                                block_level_markdown = false;
-                                finalised = i == echoArgs.repeat;
-                                auth_token = #ApiKey(apiKey);
-                            });
-                            Debug.print("Result: " # debug_show (result));
-                        } catch (error) {
-                            Debug.print("Error: " # Error.message(error));
-                        };
-                    },
-                );
-            };
+        let ?messageId = context.getMessageIdOrNull() else return #internalError(#invalid("Message ID not found in context"));
+        // Echo X times, once every 3 seconds
+        let secondOffset = 3;
+        let apiKeyScope : Sdk.ApiKeyScope = switch (context.scope) {
+            case (#chat(chatDetails)) #chat(chatDetails.chat);
+            case (#community(community)) #community(community.communityId);
+        };
+
+        let ?apiKeyContext = context.getApiKeyByScope(apiKeyScope) else return #badRequest(#accessTokenNotFound); // TODO correct error?
+        let authToken = switch (apiKeyContext.token) {
+            case (#jwt(jwt)) #Jwt(jwt);
+            case (#apiKey(apiKey)) #ApiKey(apiKey);
+        };
+
+        for (i in Iter.range(0, echoArgs.repeat - 1)) {
+            ignore Timer.setTimer<system>(
+                #seconds(secondOffset * i),
+                func() : async () {
+                    let botApiActor = context.getBotApiActor();
+                    await* echoMessage(botApiActor, echoArgs.message, authToken, null);
+                    if (i == ((echoArgs.repeat - 1) : Nat)) {
+                        await* echoMessage(botApiActor, "Echoing Complete!", authToken, ?messageId);
+                    };
+                },
+            );
         };
         #success({
             message = ?{
                 id = messageId;
                 content = #text({
-                    text = "Echo: " # echoArgs.message;
+                    text = "Echoing " # Nat.toText(echoArgs.repeat) # " times...";
                 });
                 blockLevelMarkdown = false;
                 ephemeral = false;
@@ -72,11 +63,44 @@ module {
         });
     };
 
+    private func echoMessage(
+        botApiActor : Sdk.BotApiActor,
+        message : Text,
+        authToken : { #Jwt : Text; #ApiKey : Text },
+        messageId : ?Sdk.MessageId,
+    ) : async* () {
+        let error : ?Text = try {
+            let result = await botApiActor.bot_send_message({
+                channel_id = null;
+                message_id = switch (messageId) {
+                    case (?id) ?Nat64.fromNat(id);
+                    case (_) null;
+                };
+                content = #Text({
+                    text = message;
+                });
+                block_level_markdown = false;
+                finalised = true;
+                auth_token = authToken;
+            });
+            switch (result) {
+                case (#Success(_)) null;
+                case (error) ?debug_show (error);
+            };
+        } catch (error) {
+            ?Error.message(error);
+        };
+        switch (error) {
+            case (?error) Debug.trap("Error echoing message: " #error);
+            case (_) ();
+        };
+    };
+
     public func getSchema() : Sdk.SlashCommand {
         {
             name = "echo";
             placeholder = null;
-            description = "Echo a message";
+            description = "Echo a message every 3 seconds";
             params = [
                 {
                     name = "message";
@@ -92,12 +116,12 @@ module {
                 },
                 {
                     name = "repeat";
-                    description = "Echo X MORE times, once every 10 seconds";
-                    placeholder = null;
+                    description = "How many times to echo the message";
+                    placeholder = ?"X";
                     required = false;
                     paramType = #integerParam({
                         choices = [];
-                        minValue = 0;
+                        minValue = 1;
                         maxValue = 20;
                     });
                 },

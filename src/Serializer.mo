@@ -406,7 +406,7 @@ module {
         #object_([(variant, value)]);
     };
 
-    public func deserializeBotActionByCommand(dataJson : Json.Json) : Result.Result<SdkTypes.BotActionByCommand, Text> {
+    public func deserializeJwtCommand(dataJson : Json.Json, jwt : Text) : Result.Result<SdkTypes.CommandContext, Text> {
         let (scopeType, scopeTypeValue) = switch (Json.getAsObject(dataJson, "scope")) {
             case (#ok(scopeObj)) scopeObj[0];
             case (#err(e)) return #err("Invalid 'scope' field: " # debug_show (e));
@@ -447,8 +447,9 @@ module {
         };
 
         #ok({
-            botApiGateway = botApiGateway;
-            bot = bot;
+            token = #jwt(jwt);
+            apiGateway = botApiGateway;
+            botId = bot;
             scope = scope;
             grantedPermissions = grantedPermissions;
             command = command;
@@ -667,7 +668,41 @@ module {
         #ok(permission);
     };
 
-    public func deserializeBotActionByApiKey(dataJson : Json.Json) : Result.Result<SdkTypes.BotActionByApiKey, Text> {
+    public func deserializeRawApiKey(dataJson : Json.Json, key : Text) : Result.Result<SdkTypes.ApiKeyContext, Text> {
+        let apiGateway = switch (getAsPrincipal(dataJson, "gateway")) {
+            case (#ok(v)) v;
+            case (#err(e)) return #err("Invalid 'gateway' field: " # debug_show (e));
+        };
+        let botId = switch (getAsPrincipal(dataJson, "bot_id")) {
+            case (#ok(v)) v;
+            case (#err(e)) return #err("Invalid 'bot_id' field: " # debug_show (e));
+        };
+
+        let scope = switch (Json.getAsObject(dataJson, "scope")) {
+            case (#ok(scope)) switch (deserializeApiKeyScope(scope)) {
+                case (#ok(v)) v;
+                case (#err(e)) return #err("Invalid 'scope' field: " # e);
+            };
+            case (#err(e)) return #err("Invalid 'scope' field: " # debug_show (e));
+        };
+
+        let permissions = switch (Json.get(dataJson, "permissions")) {
+            case (?permissions) switch (deserializeBotPermissions(permissions)) {
+                case (#ok(v)) v;
+                case (#err(e)) return #err("Invalid 'permissions' field: " # e);
+            };
+            case (null) return #err("Missing 'permissions' field");
+        };
+        #ok({
+            token = #apiKey(key);
+            apiGateway = apiGateway;
+            botId = botId;
+            scope = scope;
+            grantedPermissions = permissions;
+        });
+    };
+
+    public func deserializeJwtApiKey(dataJson : Json.Json, jwt : Text) : Result.Result<SdkTypes.ApiKeyContext, Text> {
         let botApiGateway = switch (getAsPrincipal(dataJson, "bot_api_gateway")) {
             case (#ok(v)) v;
             case (#err(e)) return #err("Invalid 'bot_api_gateway' field: " # debug_show (e));
@@ -678,7 +713,7 @@ module {
         };
 
         let scope = switch (Json.getAsObject(dataJson, "scope")) {
-            case (#ok(scope)) switch (deserializeAccessTokenScope(scope)) {
+            case (#ok(scope)) switch (deserializeApiKeyScope(scope)) {
                 case (#ok(v)) v;
                 case (#err(e)) return #err("Invalid 'scope' field: " # e);
             };
@@ -694,14 +729,15 @@ module {
         };
 
         #ok({
-            botApiGateway = botApiGateway;
-            bot = bot;
+            token = #jwt(jwt);
+            apiGateway = botApiGateway;
+            botId = bot;
             scope = scope;
             grantedPermissions = grantedPermissions;
         });
     };
 
-    private func deserializeAccessTokenScope(scopeJson : [(Text, Json.Json)]) : Result.Result<SdkTypes.AccessTokenScope, Text> {
+    private func deserializeApiKeyScope(scopeJson : [(Text, Json.Json)]) : Result.Result<SdkTypes.ApiKeyScope, Text> {
         let (scopeType, scopeTypeValue) = scopeJson[0];
         switch (scopeType) {
             case ("Chat") switch (Json.getAsObject(scopeTypeValue, "")) {

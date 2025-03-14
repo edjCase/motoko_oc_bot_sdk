@@ -11,8 +11,8 @@ module {
     public type UpdateHttpResponse = HttpTypes.UpdateResponse;
     public type BotSchema = Types.BotSchema;
     public type BotAction = Types.BotAction;
-    public type BotActionByCommand = Types.BotActionByCommand;
-    public type BotActionByApiKey = Types.BotActionByApiKey;
+    public type CommandContext = Types.CommandContext;
+    public type ApiKeyContext = Types.ApiKeyContext;
     public type CommandResponse = Types.CommandResponse;
     public type MessageId = Types.MessageId;
     public type Message = Types.Message;
@@ -20,19 +20,20 @@ module {
     public type SlashCommand = Types.SlashCommand;
     public type CommandExecutionContext = ExecutionContext.CommandExecutionContext;
     public type Events = HttpHandlerModule.Events;
+    public type ApiKeyScope = Types.ApiKeyScope;
 
     public type BotApiActor = OpenChatApi.BotApiActor;
 
     public type HttpHandler = HttpHandlerModule.HttpHandler;
     public func HttpHandler(
+        apiKeys : [Text],
         botSchema : BotSchema,
         openChatPublicKey : Blob,
-        apiKey : ?Text,
         events : HttpHandlerModule.Events,
     ) : HttpHandler = HttpHandlerModule.HttpHandler(
+        apiKeys,
         botSchema,
         openChatPublicKey,
-        apiKey,
         events,
     );
 
