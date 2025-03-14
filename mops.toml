@@ -10,7 +10,7 @@ json = "1.0.1"
 
 [package]
 name = "openchat-bot-sdk"
-version = "0.0.6"
+version = "0.0.7"
 description = "A library for creating OpenChat bots with defined types and http handlers"
 repository = "https://github.com/edjcase/motoko_oc_bot_sdk"
 keywords = ["openchat", "sdk", "bot"]
