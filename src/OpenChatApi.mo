@@ -649,10 +649,10 @@ module {
     public type PollConfig = {
         text : ?Text;
         options : [Text];
-        end_date : ?Nat64; // milliseconds
+        end_date : ?Milliseconds; // milliseconds
         anonymous : Bool;
         show_votes_before_end_date : Bool;
-        allow_multiple_botes_per_user : Bool;
+        allow_multiple_votes_per_user : Bool;
         allow_user_to_change_vote : Bool;
     };
 
