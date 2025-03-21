@@ -19,6 +19,12 @@ module {
         name : Text;
         args : [CommandArg];
         initiator : UserId;
+        meta : ?CommandMeta;
+    };
+
+    public type CommandMeta = {
+        timezone : Text; // IANA timezone e.g. "Europe/London"
+        language : Text; // The language selected in OpenChat e.g. "en"
     };
 
     public type CommandArg = {
