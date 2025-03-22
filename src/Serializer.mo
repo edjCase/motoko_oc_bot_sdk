@@ -473,10 +473,33 @@ module {
             case (#ok(v)) v;
             case (#err(e)) return #err("Invalid 'initiator' field: " # debug_show (e));
         };
+        let meta : ?SdkTypes.CommandMeta = switch (Json.get(commandJson, "meta")) {
+            case (?meta) switch (deserializeCommandMeta(meta)) {
+                case (#ok(v)) ?v;
+                case (#err(e)) return #err("Invalid 'meta' field: " # e);
+            };
+            case (null) null;
+        };
         #ok({
             name = commandName;
             args = commandArgs;
             initiator = initiator;
+            meta = meta;
+        });
+    };
+
+    private func deserializeCommandMeta(metaJson : Json.Json) : Result.Result<SdkTypes.CommandMeta, Text> {
+        let timezone = switch (Json.getAsText(metaJson, "timezone")) {
+            case (#ok(v)) v;
+            case (#err(e)) return #err("Invalid 'timezone' field: " # debug_show (e));
+        };
+        let language = switch (Json.getAsText(metaJson, "language")) {
+            case (#ok(v)) v;
+            case (#err(e)) return #err("Invalid 'language' field: " # debug_show (e));
+        };
+        #ok({
+            timezone = timezone;
+            language = language;
         });
     };
 
