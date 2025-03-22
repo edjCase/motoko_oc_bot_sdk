@@ -1,4 +1,4 @@
-import Sdk "../../src";
+import Sdk "mo:openchat-bot-sdk";
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
 import Array "mo:base/Array";

@@ -1,6 +1,7 @@
 import Echo "./commands/Echo";
-import Sdk "../src";
+import Sdk "mo:openchat-bot-sdk";
 import Text "mo:base/Text";
+import { OPEN_CHAT_PUBLIC_KEY } "mo:env";
 
 actor Actor {
 
@@ -16,7 +17,7 @@ actor Actor {
             syncApiKey = true;
         };
     };
-    let openChatPublicKey = Text.encodeUtf8("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEVbUGV60FvFD/lHH9bIfvqXUo7fBqDqKmt/mG64jNpOmVjH/rDn92G2tBrFOpQRIuFeFXZTFWSUIfAeBhyqTmXw==");
+    let openChatPublicKey = Text.encodeUtf8(OPEN_CHAT_PUBLIC_KEY);
 
     stable var apiKeys : [Text] = [];
 
