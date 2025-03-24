@@ -4,4 +4,3 @@ build/
 .mops/
 .env
 .dfx
-.env-*/lib.mo
